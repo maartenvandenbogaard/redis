@@ -1,5 +1,5 @@
 #!/bin/bash
-set -xe
+set -ex
 
 # needs args in following manner:
 #    src_node_ip
@@ -12,9 +12,6 @@ set -xe
 #    ...
 #    other_masterN_ip
 reshard() {
-    argv=( $@ )
-    argc=$#
-
     for i in `seq $5 $6`; do
         redis-cli -c -h $3 cluster setslot ${i} importing $2
         redis-cli -c -h $1 cluster setslot ${i} migrating $4

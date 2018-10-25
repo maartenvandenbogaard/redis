@@ -12,8 +12,8 @@ import (
 	core_util "github.com/appscode/kutil/core/v1"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	"github.com/kubedb/apimachinery/pkg/eventer"
+	"github.com/kubedb/redis/pkg/configure-cluster"
 	"github.com/pkg/errors"
-	"github.com/tamalsaha/go-oneliners"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -41,13 +41,8 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 			return kutil.VerbUnchanged, err
 		}
 
-		log.Infoln(">>>>>>>>>>", statefulSetName)
-		oneliners.PrettyJson(*statefulSet.Spec.Replicas, statefulSetName+".spec.replicas")
-		oneliners.PrettyJson(statefulSet.Spec.Template.Spec.Containers, statefulSetName+".spec.containers")
-
 		// Check StatefulSet Pod status
 		if vt != kutil.VerbUnchanged {
-			//if err := c.checkStatefulSetPodStatus(statefulSet); err != nil {
 			if err := c.checkStatefulSetPods(statefulSet); err != nil {
 				c.recorder.Eventf(
 					redis,
@@ -82,7 +77,6 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 			return vt, err
 		}
 	} else {
-		oneliners.PrettyJson(*redis.Spec.Cluster, "redis.spec.cluster")
 		for i := 0; i < int(*redis.Spec.Cluster.Master); i++ {
 			statefulSetName := fmt.Sprintf("%s-shard%d", redis.OffshootName(), i)
 			vt, err = fn(statefulSetName, false)
@@ -91,10 +85,6 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 			}
 		}
 
-		// wait until the cluster is configured with the current specification
-		//if err := c.waitUntilRedisClusterConfigured(redis); err != nil {
-		//	return vt, errors.New("failed to configure required cluster")
-		//}
 		statefulSets, err := c.Client.AppsV1().StatefulSets(redis.Namespace).List(metav1.ListOptions{
 			LabelSelector: labels.Set{
 				api.LabelDatabaseKind: api.ResourceKindRedis,
@@ -104,6 +94,7 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 		if err != nil {
 			return vt, err
 		}
+
 		for i := 0; i < len(statefulSets.Items); i++ {
 			for j := i + 1; j < len(statefulSets.Items); j++ {
 				idx1, _ := strconv.Atoi(statefulSets.Items[i].Name[len(fmt.Sprintf("%s-shard", redis.OffshootName())):])
@@ -125,22 +116,11 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 			}
 		}
 
-		if err := ConfigureRedisCluster(c.restConfig, c.Client, redis, pods); err != nil {
+		if err := configure_cluster.ConfigureRedisCluster(c.restConfig, c.Client, redis, pods); err != nil {
 			return vt, errors.Wrap(err, "failed to configure required cluster")
 		}
 
 		log.Infoln("Cluster configured")
-
-		// delete the statefulSets whose corresponding master nodes are deleted from the cluster
-		//statefulSets, err := c.Client.AppsV1().StatefulSets(redis.Namespace).List(metav1.ListOptions{
-		//	LabelSelector: labels.Set{
-		//		api.LabelDatabaseKind: api.ResourceKindRedis,
-		//		api.LabelDatabaseName: redis.Name,
-		//	}.String(),
-		//})
-		//if err != nil {
-		//	return vt, err
-		//}
 
 		log.Infoln("Checking for removing master(s)...")
 		if len(statefulSets.Items) > int(*redis.Spec.Cluster.Master) {
@@ -162,6 +142,8 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 		// update the the statefulSets with reduced replicas as some of their slaves have been removed
 		for i := 0; i < int(*redis.Spec.Cluster.Master); i++ {
 			if int(*statefulSets.Items[i].Spec.Replicas) > int(*redis.Spec.Cluster.Replicas)+1 {
+				log.Infoln("Removing slaves...")
+
 				statefulSetName := fmt.Sprintf("%s-shard%d", redis.OffshootName(), i)
 				vt, err = fn(statefulSetName, true)
 				if err != nil {
@@ -171,50 +153,6 @@ func (c *Controller) ensureStatefulSet(redis *api.Redis) (kutil.VerbType, error)
 		}
 	}
 
-	//if err := c.checkStatefulSet(redis); err != nil {
-	//	return kutil.VerbUnchanged, err
-	//}
-	//
-	//// Create statefulSet for Redis database
-	//statefulSet, vt, err := c.createStatefulSet(redis)
-	//if err != nil {
-	//	return kutil.VerbUnchanged, err
-	//}
-	//
-	//// Check StatefulSet Pod status
-	//if vt != kutil.VerbUnchanged {
-	//	if err := c.checkStatefulSetPodStatus(statefulSet); err != nil {
-	//		c.recorder.Eventf(
-	//			redis,
-	//			core.EventTypeWarning,
-	//			eventer.EventReasonFailedToStart,
-	//			`Failed to CreateOrPatch StatefulSet. Reason: %v`,
-	//			err,
-	//		)
-	//		return kutil.VerbUnchanged, err
-	//	}
-	//
-	//	if redis.Spec.Mode == api.RedisModeCluster {
-	//		if err := c.configureCluster(redis, statefulSet); err != nil {
-	//			c.recorder.Eventf(
-	//				redis,
-	//				core.EventTypeWarning,
-	//				eventer.EventReasonFailedToStart,
-	//				`Failed to configure cluster. Reason: %v`,
-	//				err,
-	//			)
-	//			return kutil.VerbUnchanged, err
-	//		}
-	//	}
-	//
-	//	c.recorder.Eventf(
-	//		redis,
-	//		core.EventTypeNormal,
-	//		eventer.EventReasonSuccessful,
-	//		"Successfully %v StatefulSet",
-	//		vt,
-	//	)
-	//}
 	return vt, nil
 }
 
@@ -273,7 +211,6 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 		in.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: redis.OffshootSelectors(),
 		}
-		//in.Spec.Selector.MatchLabels["shard"] = strings.Split(statefulSetName, "-shard")[1]
 		in.Spec.Template.Labels = redis.OffshootSelectors()
 		in.Spec.Template.Annotations = redis.Spec.PodTemplate.Annotations
 		in.Spec.Template.Spec.InitContainers = core_util.UpsertContainers(
@@ -300,9 +237,8 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 			Name:            api.ResourceSingularRedis,
 			Image:           redisVersion.Spec.DB.Image,
 			ImagePullPolicy: core.PullIfNotPresent,
-			//ImagePullPolicy: core.PullAlways,
-			Args:  redis.Spec.PodTemplate.Spec.Args,
-			Ports: ports,
+			Args:            redis.Spec.PodTemplate.Spec.Args,
+			Ports:           ports,
 			Env: []core.EnvVar{
 				{
 					Name: "POD_IP",
@@ -312,46 +248,12 @@ func (c *Controller) createStatefulSet(statefulSetName string, redis *api.Redis,
 						},
 					},
 				},
-				//{
-				//	Name:  "REDIS_CONFIG",
-				//	Value: filepath.Join(CONFIG_MOUNT_PATH, RedisConfigRelativePath),
-				//},
 			},
 			Resources:      redis.Spec.PodTemplate.Spec.Resources,
 			LivenessProbe:  redis.Spec.PodTemplate.Spec.LivenessProbe,
 			ReadinessProbe: redis.Spec.PodTemplate.Spec.ReadinessProbe,
 			Lifecycle:      redis.Spec.PodTemplate.Spec.Lifecycle,
 		})
-
-		//in.Spec.Template.Spec.Subdomain = c.GoverningService
-		//if redis.Spec.Mode == api.RedisModeCluster {
-		//	in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
-		//		Name:            "configure-cluster",
-		//		Image:           "alittleprogramming/cli-trib:configure-cluster",
-		//		ImagePullPolicy: core.PullAlways,
-		//		SecurityContext: &core.SecurityContext{
-		//			Privileged: types.BoolP(true),
-		//		},
-		//		Env: []core.EnvVar{
-		//			{
-		//				Name:  "BASE_NAME",
-		//				Value: redis.OffshootName(),
-		//			},
-		//			{
-		//				Name:  "GOVERNING_SERVICE",
-		//				Value: c.GoverningService,
-		//			},
-		//			{
-		//				Name:  "MASTER_COUNT",
-		//				Value: strconv.Itoa(int(*redis.Spec.Cluster.Master)),
-		//			},
-		//			{
-		//				Name:  "REPLICAS",
-		//				Value: strconv.Itoa(int(*redis.Spec.Cluster.Replicas)),
-		//			},
-		//		},
-		//	})
-		//}
 
 		if redis.GetMonitoringVendor() == mona.VendorPrometheus {
 			in.Spec.Template.Spec.Containers = core_util.UpsertContainer(in.Spec.Template.Spec.Containers, core.Container{
@@ -489,17 +391,11 @@ func upsertCustomConfig(statefulSet *apps.StatefulSet, redis *api.Redis) *apps.S
 	if redis.Spec.ConfigSource != nil {
 		for i, container := range statefulSet.Spec.Template.Spec.Containers {
 			if container.Name == api.ResourceSingularRedis {
-				//fixIpMountPath := filepath.Join(CONFIG_MOUNT_PATH, "fix-ip")
-
 				configVolumeMount := []core.VolumeMount{
 					{
 						Name:      "custom-config",
 						MountPath: CONFIG_MOUNT_PATH,
 					},
-					//{
-					//	Name:      "fix-ip",
-					//	MountPath: fixIpMountPath,
-					//},
 				}
 
 				volumeMounts := container.VolumeMounts
@@ -511,17 +407,6 @@ func upsertCustomConfig(statefulSet *apps.StatefulSet, redis *api.Redis) *apps.S
 						Name:         "custom-config",
 						VolumeSource: *redis.Spec.ConfigSource,
 					},
-					//{
-					//	Name: "fix-ip",
-					//	VolumeSource: core.VolumeSource{
-					//		ConfigMap: &core.ConfigMapVolumeSource{
-					//			LocalObjectReference: core.LocalObjectReference{
-					//				Name: redis.Name + "-fixip",
-					//			},
-					//			DefaultMode: types.Int32P(493),
-					//		},
-					//	},
-					//},
 				}
 
 				volumes := statefulSet.Spec.Template.Spec.Volumes
@@ -536,8 +421,6 @@ func upsertCustomConfig(statefulSet *apps.StatefulSet, redis *api.Redis) *apps.S
 				}
 				statefulSet.Spec.Template.Spec.Containers[i].Args = args
 
-				//fixIP := filepath.Join(fixIpMountPath, RedisFixIPScriptRelativePath)
-				//statefulSet.Spec.Template.Spec.Containers[i].Command = []string{"sh", "-c", fixIP}
 				break
 			}
 		}

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/appscode/go/log"
-	"github.com/tamalsaha/go-oneliners"
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -96,12 +95,6 @@ func (e *Exec) Run(pod *core.Pod, command ...string) (string, error) {
 		SubResource("exec")
 	req.VersionedParams(e.Options.GetPodExecOptions(pod.Spec.Containers[0].Name, command...), scheme.ParameterCodec)
 	log.Infoln(command)
-	for _, c := range command {
-		if c == "reset" {
-			oneliners.PrettyJson(*pod)
-			break
-		}
-	}
 
 	exec, err := remotecommand.NewSPDYExecutor(e.ClientConfig, "POST", req.URL())
 	if err != nil {
@@ -109,7 +102,7 @@ func (e *Exec) Run(pod *core.Pod, command ...string) (string, error) {
 	}
 
 	err = exec.Stream(e.Options.GetStreamOptions(&execOut, &execErr))
-	log.Infoln("out = ", execOut.String())
+	//log.Infoln("out = ", execOut.String())
 
 	if err != nil {
 		log.Infoln("err = ", err.Error())

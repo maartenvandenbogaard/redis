@@ -2,7 +2,6 @@ package cmds
 
 import (
 	"github.com/appscode/go/log"
-	rd_cluster "github.com/kubedb/redis/pkg/configure-cluster"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +13,7 @@ func NewCmdConfigureCluster() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Infoln("Configuring redis-servers as a cluster...")
 
-			rd_cluster.ConfigureRedisCluster()
+			//rd_cluster.ConfigureRedisCluster()
 		},
 	}
 

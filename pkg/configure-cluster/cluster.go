@@ -1,4 +1,4 @@
-package controller
+package configure_cluster
 
 import (
 	"fmt"
@@ -86,10 +86,8 @@ func (c Config) getInstances() ([][]*core.Pod, error) {
 
 			{
 				_, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
-				//	for default/redis0-shard0-0 >>>>>>>>>>>>>>>
-				//%!(EXTRA string=pods "redis0-shard0-0" is forbidden: User "system:serviceaccount:default:default" cannot get pods in the namespace "default")__FILE__
 				if err != nil {
-					fmt.Printf("for %s/%s >>>>>>>>>>>>>>>\n", c.Namespace, podName)
+					//fmt.Printf("for %s/%s >>>>>>>>>>>>>>>\n", c.Namespace, podName)
 					oneliners.PrettyJson(err)
 				}
 			}
@@ -104,7 +102,7 @@ func (c Config) getInstances() ([][]*core.Pod, error) {
 				return nil, errors.Wrapf(err, "failed to get pod '%s/%s'", c.Namespace, podName)
 			}
 
-			log.Infof("%s/%s is ready", c.Namespace, podName)
+			//log.Infof("%s/%s is ready", c.Namespace, podName)
 			pod, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
 			if err != nil {
 				return nil, err
@@ -113,13 +111,13 @@ func (c Config) getInstances() ([][]*core.Pod, error) {
 		}
 	}
 
-	for i := 0; i < c.Cluster.MasterCnt; i++ {
-		fmt.Println("[")
-		for j := 0; j <= c.Cluster.Replicas; j++ {
-			fmt.Printf("\t %s, %s\n", pods[i][j].Name, pods[i][j].Status.PodIP)
-		}
-		fmt.Println("]")
-	}
+	//for i := 0; i < c.Cluster.MasterCnt; i++ {
+	//	fmt.Println("[")
+	//	for j := 0; j <= c.Cluster.Replicas; j++ {
+	//		fmt.Printf("\t %s, %s\n", pods[i][j].Name, pods[i][j].Status.PodIP)
+	//	}
+	//	fmt.Println("]")
+	//}
 	return pods, nil
 }
 
@@ -199,23 +197,23 @@ func (c Config) getClusterNodes(pod *core.Pod, ip string) (string, error) {
 
 func (c Config) clusterReset(pod *core.Pod, ip, option string) error {
 	e := exec.NewExecWithDefaultOptions(c.RestConfig, c.KubeClient)
-	out, err := e.Run(pod, ClusterResetCmd(ip)...)
+	_, err := e.Run(pod, ClusterResetCmd(ip)...)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to reset node %q", ip)
 	}
 
-	fmt.Println(out)
+	//fmt.Println(out)
 	return nil
 }
 
 func (c Config) clusterFailover(pod *core.Pod, ip string) error {
 	e := exec.NewExecWithDefaultOptions(c.RestConfig, c.KubeClient)
-	out, err := e.Run(pod, ClusterFailoverCmd(ip)...)
+	_, err := e.Run(pod, ClusterFailoverCmd(ip)...)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to failover node %q", ip)
 	}
 
-	fmt.Println(out)
+	//fmt.Println(out)
 	return nil
 }
 
@@ -313,11 +311,11 @@ Reshard:
 		cmd := []string{"/conf/cluster.sh", "reshard", nodes[src][0].IP, nodes[src][0].ID, nodes[dst][0].IP, nodes[dst][0].ID,
 			strconv.Itoa(start), strconv.Itoa(en),
 		}
-		for k := range nodes {
-			if k != src && k != dst {
-				cmd = append(cmd, nodes[k][0].IP)
-			}
-		}
+		//for k := range nodes {
+		//	if k != src && k != dst {
+		//		cmd = append(cmd, nodes[k][0].IP)
+		//	}
+		//}
 
 		e := exec.NewExecWithDefaultOptions(c.RestConfig, c.KubeClient)
 		_, err = e.Run(pod, cmd...)
@@ -609,23 +607,23 @@ Again:
 		}
 		nodes = processNodesConf(nodesConf)
 		for _, master := range nodes {
-			log.Infoln("master = ", master.IP)
+			//log.Infoln("master = ", master.IP)
 			for i := 0; i < len(pods); i++ {
 				if pods[i][0].Status.PodIP == master.IP {
-					log.Infoln("found master = ", master.IP, " at ", i)
+					//log.Infoln("found master = ", master.IP, " at ", i)
 					for _, slave := range master.Slaves {
-						log.Infoln("\tslave = ", slave.IP)
+						//log.Infoln("\tslave = ", slave.IP)
 						for k := 0; k < len(pods); k++ {
 							for j := 1; j < len(pods[k]); j++ {
 								if pods[k][j].Status.PodIP == slave.IP && i != k {
-									log.Infoln("\tfound slave = ", slave.IP, " at ", k, " ", j)
+									//log.Infoln("\tfound slave = ", slave.IP, " at ", k, " ", j)
 									if err = c.clusterReplicate(
 										pods[k][j], pods[k][j].Status.PodIP,
 										getNodeId(getNodeConfByIP(nodesConf, pods[k][0].Status.PodIP))); err != nil {
 										return nil, err
 									}
 									time.Sleep(time.Second * 5)
-									log.Infoln("Again")
+									//log.Infoln("Again")
 									goto Again
 								}
 							}
@@ -638,11 +636,12 @@ Again:
 		break
 	}
 
-	log.Infoln("pods len = ", len(pods))
-	for i := range pods {
-		log.Infoln("pods[", i, "] len = ", len(pods[i]))
-	}
-	log.Infoln("nodes len = ", len(nodes))
+	//log.Infoln("pods len = ", len(pods))
+	//for i := range pods {
+	//	log.Infoln("pods[", i, "] len = ", len(pods[i]))
+	//}
+	//log.Infoln("nodes len = ", len(nodes))
+
 	//for i, master := range nodes {
 	//	fmt.Println(">>>>>>>> index =", i)
 	//	fmt.Println("=============================================================")
@@ -673,12 +672,12 @@ Again:
 				orderedNodes[i][0] = *master
 				//orderedNodes[i].Slaves = make([]*RedisNode, len(pods[i]))
 
-				log.Infof("pods[%d].len = %d", i, len(pods[i]))
-				log.Infof("orderedNodes[%d].len = %d", i, len(orderedNodes[i]))
-				log.Infof("orderedNodes[%d][0].ip = %s", i, orderedNodes[i][0].IP)
+				//log.Infof("pods[%d].len = %d", i, len(pods[i]))
+				//log.Infof("orderedNodes[%d].len = %d", i, len(orderedNodes[i]))
+				//log.Infof("orderedNodes[%d][0].ip = %s", i, orderedNodes[i][0].IP)
 
 				for j := 1; j < len(orderedNodes[i]); j++ {
-					log.Infoln("j is ", j)
+					//log.Infoln("j is ", j)
 					for _, slave := range master.Slaves {
 						if slave.IP == pods[i][j].Status.PodIP {
 							orderedNodes[i][j] = *slave
@@ -729,13 +728,12 @@ func (c Config) ensureExtraSlavesBeRemoved(pods [][]*core.Pod) error {
 	log.Infoln("\n\nensuring extra slaves be removed...")
 
 	var (
-		err error
-		//pods [][]*core.Pod
-		//nodesConf string
-		//nds       map[string]*RedisNode
+		err   error
 		nodes [][]RedisNode
 	)
+
 	// =========================
+
 	nodes, err = c.getOrderedNodes(pods)
 	for i := range nodes {
 		if c.Cluster.Replicas < len(nodes[i])-1 {
@@ -752,83 +750,7 @@ func (c Config) ensureExtraSlavesBeRemoved(pods [][]*core.Pod) error {
 		}
 	}
 
-	// todo: wait if slave(s) have been removed
-	//time.Sleep(time.Second * 30)
 	// =========================
-
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	////ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, 0, 0, c.GoverningService, c.Namespace))
-	////ip = pods[0][0].Status.PodIP
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//
-	//nds = processNodesConf(nodesConf)
-	//// remove slave(s)
-	//for _, master := range nds {
-	//	if c.Cluster.Replicas < len(master.Slaves) {
-	//		var (
-	//			runningSlavesIPs sets.String
-	//			masterfound      bool
-	//			masterIndex int
-	//		)
-	//
-	//		// find slaves' ips of this master those need to be keep alive
-	//		for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//			runningSlavesIPs = sets.NewString()
-	//			masterfound = false
-	//
-	//			for j := 0; j <= c.Cluster.Replicas; j++ {
-	//				//curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
-	//				//	c.BaseName, i, j, c.GoverningService, c.Namespace))
-	//				//curIP := pods[i][j].Status.PodIP
-	//				if pods[i][j].Status.PodIP == master.IP {
-	//					masterfound = true
-	//					masterIndex = i
-	//					continue
-	//				}
-	//				runningSlavesIPs.Insert(pods[i][j].Status.PodIP)
-	//			}
-	//
-	//			if masterfound {
-	//				break
-	//			}
-	//		}
-	//
-	//		// delete the slaves those aren't in the set 'runningSlavesIps'
-	//		for j := c.Cluster.Replicas + 1; j <= len(master.Slaves); j++ {
-	//			podName := fmt.Sprintf("%s-shard%d-%d", c.BaseName, masterIndex, j)
-	//			pod, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
-	//			if err != nil {
-	//				return errors.Wrapf(err, "failed to get slave '%s/%s' to delete", c.Namespace, podName)
-	//			}
-	//
-	//			for _, slave := range master.Slaves {
-	//				if slave.IP == pod.Status.PodIP {
-	//					if err = c.deleteNode(pod, master.IP+":6379", slave.ID); err != nil {
-	//						return err
-	//					}
-	//					if err = c.clusterReset(pod, slave.IP); err != nil {
-	//						return err
-	//					}
-	//				}
-	//			}
-	//		}
-	//		//for _, slave := range master.Slaves {
-	//		//	if !runningSlavesIPs.Has(slave.IP) {
-	//		//		if err = c.deleteNode(pods[0][0], master.IP+":6379", slave.ID); err != nil {
-	//		//			return err
-	//		//		}
-	//		//		if err = c.clusterReset(pods[0][0], slave.IP); err != nil {
-	//		//			return err
-	//		//		}
-	//		//	}
-	//		//}
-	//		time.Sleep(time.Second * 20)
-	//	}
-	//}
 
 	return nil
 }
@@ -837,14 +759,10 @@ func (c Config) ensureExtraMastersBeRemoved(pods [][]*core.Pod) error {
 	log.Infoln("\n\nensuring extra masters be removed...")
 
 	var (
-		err error
-		//pods [][]*core.Pod
-		//nodesConf                               string
-		//nds                                     map[string]*RedisNode
-		existingMasterCnt int
-		//masterIDsToBeRemoved, masterIDsToBeKept sets.String //[]string
-		slotsPerMaster, slotsRequired int //, allocatedSlotsCnt int
+		err                           error
+		existingMasterCnt             int
 		nodes                         [][]RedisNode
+		slotsPerMaster, slotsRequired int
 	)
 	// =========================
 	nodes, err = c.getOrderedNodes(pods)
@@ -862,6 +780,7 @@ func (c Config) ensureExtraMastersBeRemoved(pods [][]*core.Pod) error {
 			}
 
 			to := nodes[i][0]
+			// todo: need to update this logic for using '-x' option in cluster.sh
 			for k := c.Cluster.MasterCnt; k < existingMasterCnt; k++ {
 				from := nodes[k][0]
 				// compare with slotsRequired
@@ -888,9 +807,6 @@ func (c Config) ensureExtraMastersBeRemoved(pods [][]*core.Pod) error {
 			}
 		}
 
-		// todo: wait if resharding happens
-		//time.Sleep(time.Second * 30)
-
 		for i := c.Cluster.MasterCnt; i < existingMasterCnt; i++ {
 			for j := 1; j < len(nodes[i]); j++ {
 				if err = c.deleteNode(pods[0][0], nodes[i][0].IP+":6379", nodes[i][j].ID); err != nil {
@@ -912,107 +828,8 @@ func (c Config) ensureExtraMastersBeRemoved(pods [][]*core.Pod) error {
 			//}
 		}
 	}
+
 	// =========================
-	//
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//nds = processNodesConf(nodesConf)
-	//existingMasterCnt = len(nds)
-	//log.Infoln("existing master count = ", existingMasterCnt)
-	//
-	//// remove master(s)
-	//if existingMasterCnt > c.Cluster.MasterCnt {
-	//	masterIDsToBeRemoved = sets.NewString()
-	//	masterIDsToBeKept = sets.NewString() //[]string
-	//
-	//	slotsPerMaster = 16384 / c.Cluster.MasterCnt
-	//	for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//		//curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
-	//		//	c.BaseName, i, j, c.GoverningService, c.Namespace))
-	//		//curIP := pods[i][0].Status.PodIP
-	//		if nodesConf, err = c.getClusterNodes(pods[i][0], pods[i][0].Status.PodIP); err != nil {
-	//			return err
-	//		}
-	//		masterIDsToBeKept.Insert(getNodeId(getMyConf(nodesConf)))
-	//	}
-	//	for masterID := range nds {
-	//		if !masterIDsToBeKept.Has(masterID) {
-	//			masterIDsToBeRemoved.Insert(masterID)
-	//		}
-	//	}
-	//	log.Infoln("masterIDsWithLessSlots", masterIDsToBeKept)
-	//	log.Infoln("masterIDsWithExtraSlots", masterIDsToBeRemoved)
-	//
-	//	for i, to := range masterIDsToBeKept.UnsortedList() {
-	//		slotsRequired = slotsPerMaster
-	//		if i == masterIDsToBeKept.Len()-1 {
-	//			// this change is only for the last master that needs slots
-	//			slotsRequired = 16384 - (slotsPerMaster * i)
-	//		}
-	//
-	//		for _, from := range masterIDsToBeRemoved.UnsortedList() {
-	//			// compare with slotsRequired
-	//			if nds[to].SlotsCnt < slotsRequired {
-	//				// But compare with slotsPerMaster. Existing masters always need slots equal to
-	//				// slotsPerMaster not slotsRequired since slotsRequired may change for last master
-	//				// that is being added.
-	//				if nds[from].SlotsCnt > 0 {
-	//					slots := nds[from].SlotsCnt
-	//					if slots > slotsRequired-nds[to].SlotsCnt {
-	//						slots = slotsRequired - nds[to].SlotsCnt
-	//					}
-	//
-	//					if err = c.reshard(pods[0][0], nds, from, to, slots); err != nil {
-	//						return err
-	//					}
-	//					nds[to].SlotsCnt += slots
-	//					nds[from].SlotsCnt -= slots
-	//				}
-	//			} else {
-	//				break
-	//			}
-	//		}
-	//	}
-	//
-	//	for i := c.Cluster.MasterCnt; i < len(nds); i++ {
-	//		for j := 1; j < c.Cluster.Replicas; j++ {
-	//			podName := fmt.Sprintf("%s-shard%d-%d", c.BaseName, i, j)
-	//			pod, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
-	//			if err != nil {
-	//				return errors.Wrapf(err, "failed to get master '%s/%s' to delete", c.Namespace, podName)
-	//			}
-	//
-	//			if err = c.deleteNode(pod, nds[id].IP+":6379", slave.ID); err != nil {
-	//				return err
-	//			}
-	//			if err = c.clusterReset(pods[0][0], slave.IP); err != nil {
-	//				return err
-	//			}
-	//		}
-	//	}
-	//
-	//	for _, id := range masterIDsToBeRemoved.UnsortedList() {
-	//		for _, slave := range nds[id].Slaves {
-	//			if err = c.deleteNode(pods[0][0], nds[id].IP+":6379", slave.ID); err != nil {
-	//				return err
-	//			}
-	//			if err = c.clusterReset(pods[0][0], slave.IP); err != nil {
-	//				return err
-	//			}
-	//		}
-	//		if err = c.deleteNode(pods[0][0], pods[0][0].Status.PodIP+":6379", id); err != nil {
-	//			return err
-	//		}
-	//		if err = c.clusterReset(pods[0][0], nds[id].IP); err != nil {
-	//			return err
-	//		}
-	//	}
-	//	time.Sleep(time.Minute)
-	//}
 
 	return nil
 }
@@ -1021,13 +838,13 @@ func (c Config) ensureNewMastersBeAdded(pods [][]*core.Pod) error {
 	log.Infoln("\n\nensuring new masters be added...")
 
 	var (
-		err error
-		//pods [][]*core.Pod
-		//nodesConf         string
+		err               error
 		existingMasterCnt int
 		nodes             [][]RedisNode
 	)
+
 	// =========================
+
 	nodes, err = c.getOrderedNodes(pods)
 	existingMasterCnt = len(nodes)
 	log.Infoln("existing master count = ", existingMasterCnt)
@@ -1048,36 +865,10 @@ func (c Config) ensureNewMastersBeAdded(pods [][]*core.Pod) error {
 				}
 				time.Sleep(time.Second * 5)
 			}
-			//time.Sleep(time.Second * 30)
-
 		}
 	}
+
 	// =========================
-	//
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//existingMasterCnt = strings.Count(nodesConf, "master")
-	//
-	//if existingMasterCnt > 1 {
-	//	// add new master(s)
-	//	if existingMasterCnt < c.Cluster.MasterCnt {
-	//		for i := existingMasterCnt; i < c.Cluster.MasterCnt; i++ {
-	//			//newMasterIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, i, 0, c.GoverningService, c.Namespace))
-	//			//newMasterIp := ips[i][0]
-	//			if err = c.addNode(
-	//				pods[0][0],
-	//				pods[i][0].Status.PodIP+":6379", pods[0][0].Status.PodIP+":6379", ""); err != nil {
-	//				return err
-	//			}
-	//		}
-	//		time.Sleep(time.Minute)
-	//		//nds = processNodesConf(getClusterNodes(ip))
-	//	}
-	//}
 
 	return nil
 }
@@ -1086,18 +877,15 @@ func (c Config) rebalanceSlots(pods [][]*core.Pod) error {
 	log.Infoln("\n\nensuring slots are rebalanced...")
 
 	var (
-		err error
-		//pods [][]*core.Pod
-		//nodesConf                                       string
-		//nds                                             map[string]*RedisNode
-		existingMasterCnt int
-		//masterIDsWithLessSlots, masterIDsWithExtraSlots []string
+		err                                                     error
+		existingMasterCnt                                       int
+		nodes                                                   [][]RedisNode
 		masterIndicesWithLessSlots, masterIndicesWithExtraSlots []int
-		//nonEmptyMastersId, emptyMastersId                []string
-		slotsPerMaster, slotsRequired int //, allocatedSlotsCnt int
-		nodes                         [][]RedisNode
+		slotsPerMaster, slotsRequired                           int
 	)
+
 	// =========================
+
 	nodes, err = c.getOrderedNodes(pods)
 
 	existingMasterCnt = len(nodes)
@@ -1149,69 +937,9 @@ func (c Config) rebalanceSlots(pods [][]*core.Pod) error {
 				}
 			}
 		}
-
-		// todo: wait if resharding happens
-		//time.Sleep(time.Second * 30)
 	}
+
 	// =========================
-	//
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//nds = processNodesConf(nodesConf)
-	//existingMasterCnt = len(nds)
-	//log.Infoln("existing master count = ", existingMasterCnt)
-	//
-	//if existingMasterCnt > 1 {
-	//	slotsPerMaster = 16384 / c.Cluster.MasterCnt
-	//	for masterID, master := range nds {
-	//		if master.SlotsCnt < slotsPerMaster {
-	//			masterIDsWithLessSlots = append(masterIDsWithLessSlots, masterID)
-	//			//emptyMastersId = append(emptyMastersId, masterId)
-	//		} else {
-	//			masterIDsWithExtraSlots = append(masterIDsWithExtraSlots, masterID)
-	//			//nonEmptyMastersId = append(nonEmptyMastersId, masterId)
-	//		}
-	//	}
-	//	log.Infoln("masterIDsWithLessSlots", masterIDsWithLessSlots)
-	//	log.Infoln("masterIDsWithExtraSlots", masterIDsWithExtraSlots)
-	//
-	//	for i, to := range masterIDsWithLessSlots {
-	//		slotsRequired = slotsPerMaster
-	//		if i == len(masterIDsWithLessSlots)-1 {
-	//			// this change is only for the last master that needs slots
-	//			slotsRequired = 16384 - (slotsPerMaster * i)
-	//		}
-	//
-	//		//allocatedSlotsCnt = nds[to].SlotsCnt
-	//		for _, from := range masterIDsWithExtraSlots {
-	//			// compare with slotsRequired
-	//			if nds[to].SlotsCnt < slotsRequired {
-	//				// But compare with slotsPerMaster. Existing masters always need slots equal to
-	//				// slotsPerMaster not slotsRequired since slotsRequired may change for last master
-	//				// that is being added.
-	//				if nds[from].SlotsCnt > slotsPerMaster {
-	//					slots := nds[from].SlotsCnt - slotsPerMaster
-	//					if slots > slotsRequired-nds[to].SlotsCnt {
-	//						slots = slotsRequired - nds[to].SlotsCnt
-	//					}
-	//
-	//					if err = c.reshard(pods[0][0], nds, from, to, slots); err != nil {
-	//						return err
-	//					}
-	//					nds[to].SlotsCnt += slots
-	//					nds[from].SlotsCnt -= slots
-	//				}
-	//			} else {
-	//				break
-	//			}
-	//		}
-	//	}
-	//	time.Sleep(time.Minute)
-	//}
 
 	return nil
 }
@@ -1220,16 +948,13 @@ func (c Config) ensureNewSlavesBeAdded(pods [][]*core.Pod) error {
 	log.Infoln("\n\nensuring new slaves be added...")
 
 	var (
-		err error
-		//pods [][]*core.Pod
-		//nodesConf         string
-		//nds               map[string]*RedisNode
+		err               error
 		existingMasterCnt int
-		//masterFound       bool
-		//curSlaves         sets.String
-		nodes [][]RedisNode
+		nodes             [][]RedisNode
 	)
+
 	// =========================
+
 	nodes, err = c.getOrderedNodes(pods)
 
 	existingMasterCnt = len(nodes)
@@ -1254,55 +979,9 @@ func (c Config) ensureNewSlavesBeAdded(pods [][]*core.Pod) error {
 				}
 			}
 		}
-		// todo: wait if new slave(s) have been added
-		//time.Sleep(time.Second * 30)
 	}
+
 	// =========================
-	//
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//nds = processNodesConf(nodesConf)
-	//existingMasterCnt = len(nds)
-	//
-	//if existingMasterCnt > 1 {
-	//	// add new slave(s)
-	//	for masterID, master := range nds {
-	//		if len(master.Slaves) < c.Cluster.Replicas {
-	//			for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//				masterFound = false
-	//				curSlaves = sets.NewString()
-	//
-	//				for j := 0; j <= c.Cluster.Replicas; j++ {
-	//					if pods[i][j].Status.PodIP == master.IP {
-	//						masterFound = true
-	//						for _, slave := range master.Slaves {
-	//							curSlaves.Insert(slave.IP)
-	//						}
-	//						break
-	//					}
-	//					//slaves.Insert(ips[i][j])
-	//				}
-	//
-	//				if masterFound {
-	//					for j := 0; j <= c.Cluster.Replicas; j++ {
-	//						if pods[i][j].Status.PodIP != master.IP && !curSlaves.Has(pods[i][j].Status.PodIP) {
-	//							if err = c.addNode(
-	//								pods[0][0],
-	//								pods[i][j].Status.PodIP+":6379", master.IP+":6379", masterID); err != nil {
-	//								return err
-	//							}
-	//						}
-	//					}
-	//					break
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
 
 	return nil
 }
@@ -1316,250 +995,14 @@ func (c Config) configureClusterState(pods [][]*core.Pod) error {
 		return err
 	}
 
-	//if err = c.ensureFirstPodAsMaster(); err != nil {
-	//	return err
-	//}
-
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	////ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, 0, 0, c.GoverningService, c.Namespace))
-	//ip = pods[0][0].Status.PodIP
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//
-	//nds = processNodesConf(nodesConf)
-	//masterCnt := len(nds)
-	//// remove slave(s)
-	//for _, master := range nds {
-	//	if c.Cluster.Replicas < len(master.Slaves) {
-	//		var (
-	//			runningSlavesIPs sets.String
-	//			masterfound      bool
-	//		)
-	//
-	//		// find slaves' ips of this master those need to be keep alive
-	//		for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//			runningSlavesIPs = sets.NewString()
-	//			masterfound = false
-	//
-	//			for j := 0; j <= c.Cluster.Replicas; j++ {
-	//				//curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
-	//				//	c.BaseName, i, j, c.GoverningService, c.Namespace))
-	//				curIP := pods[i][j].Status.PodIP
-	//				if curIP == master.IP {
-	//					masterfound = true
-	//					continue
-	//				}
-	//				runningSlavesIPs.Insert(curIP)
-	//			}
-	//
-	//			if masterfound {
-	//				break
-	//			}
-	//		}
-	//
-	//		// delete the slaves those aren't in the set 'runningSlavesIps'
-	//		for _, slave := range master.Slaves {
-	//			if !runningSlavesIPs.Has(slave.IP) {
-	//				if err = c.deleteNode(pods[0][0], master.IP+":6379", slave.ID); err != nil {
-	//					return err
-	//				}
-	//				if err = c.clusterReset(pods[0][0], slave.IP); err != nil {
-	//					return err
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
 	if err = c.ensureExtraSlavesBeRemoved(pods); err != nil {
 		return err
 	}
 
-	//=================================
-
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//ip = pods[0][0].Status.PodIP
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//nds = processNodesConf(nodesConf)
-	//existingMasterCnt = len(nds)
-	//
-	//// remove master(s)
-	//if existingMasterCnt > c.Cluster.MasterCnt {
-	//	var (
-	//		masterIDsToBeRemoved, masterIDsToBeKept sets.String//[]string
-	//		slotsPerMaster, slotsRequired           int //, allocatedSlotsCnt int
-	//	)
-	//
-	//	slotsPerMaster = 16384 / c.Cluster.MasterCnt
-	//	for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//		//for j := 0; j <= c.Cluster.Replicas; j++ {
-	//			//curIP := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
-	//			//	c.BaseName, i, j, c.GoverningService, c.Namespace))
-	//			//curIP := pods[i][0].Status.PodIP
-	//			if nodesConf, err = c.getClusterNodes(pods[i][0], pods[i][0].Status.PodIP); err != nil {
-	//				return err
-	//			}
-	//			myConf := getMyConf(nodesConf)
-	//			masterIDsToBeKept.Insert(getNodeId(myConf))
-	//			//masterIDsToBeKept = append(masterIDsToBeKept, getNodeId(myConf))
-	//			//
-	//			//if getNodeRole(myConf) == "master" {
-	//			//	if i < c.Cluster.MasterCnt {
-	//			//		masterIDsToBeKept = append(masterIDsToBeKept, getNodeId(myConf))
-	//			//	} else {
-	//			//		masterIDsToBeRemoved = append(masterIDsToBeRemoved, getNodeId(myConf))
-	//			//	}
-	//			//} else if getNodeRole(myConf) == "slave" {
-	//			//	if i >= c.Cluster.MasterCnt {
-	//			//		deleteNode(ip+":6379", getNodeId(myConf))
-	//			//		clusterReset(curIP)
-	//			//	}
-	//			//}
-	//		//}
-	//	}
-	//	for masterID, _ := range nds {
-	//		if !masterIDsToBeKept.Has(masterID) {
-	//			masterIDsToBeRemoved.Insert(masterID)
-	//		}
-	//	}
-	//
-	//	for i, to := range masterIDsToBeKept.UnsortedList() {
-	//		slotsRequired = slotsPerMaster
-	//		if i == masterIDsToBeKept.Len()-1 {
-	//			// this change is only for the last master that needs slots
-	//			slotsRequired = 16384 - (slotsPerMaster * i)
-	//		}
-	//
-	//		for _, from := range masterIDsToBeRemoved.UnsortedList() {
-	//			// compare with slotsRequired
-	//			if nds[to].SlotsCnt < slotsRequired {
-	//				// But compare with slotsPerMaster. Existing masters always need slots equal to
-	//				// slotsPerMaster not slotsRequired since slotsRequired may change for last master
-	//				// that is being added.
-	//				if nds[from].SlotsCnt > 0 {
-	//					slots := nds[from].SlotsCnt
-	//					if slots > slotsRequired-nds[to].SlotsCnt {
-	//						slots = slotsRequired - nds[to].SlotsCnt
-	//					}
-	//
-	//					if err = c.reshard(pods[0][0], nds, from, to, slots); err != nil {
-	//						return err
-	//					}
-	//					nds[to].SlotsCnt += slots
-	//					nds[from].SlotsCnt -= slots
-	//				}
-	//			} else {
-	//				break
-	//			}
-	//		}
-	//	}
-	//
-	//	for _, id := range masterIDsToBeRemoved.UnsortedList() {
-	//		for _, slave := range nds[id].Slaves {
-	//			if err = c.deleteNode(pods[0][0], nds[id].IP+":6379", slave.ID); err != nil {
-	//				return err
-	//			}
-	//			if err = c.clusterReset(pods[0][0], slave.IP); err != nil {
-	//				return err
-	//			}
-	//		}
-	//		if err = c.deleteNode(pods[0][0], pods[0][0].Status.PodIP+":6379", id); err != nil {
-	//			return err
-	//		}
-	//		if err = c.clusterReset(pods[0][0], nds[id].IP); err != nil {
-	//			return err
-	//		}
-	//		//deleteNode(ip+":6379", masterIDToBeRemoved)
-	//		//clusterReset(nds[masterIDToBeRemoved].IP)
-	//	}
-	//}
 	if err = c.ensureExtraMastersBeRemoved(pods); err != nil {
 		return err
 	}
 
-	//=================================
-
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//ip = pods[0][0].Status.PodIP
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//nds = processNodesConf(nodesConf)
-	//existingMasterCnt = len(nds)
-	//
-	//if existingMasterCnt > 1 {
-	//	// add new master(s)
-	//	if existingMasterCnt < c.Cluster.MasterCnt {
-	//		for i := existingMasterCnt; i < c.Cluster.MasterCnt; i++ {
-	//			//newMasterIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, i, 0, c.GoverningService, c.Namespace))
-	//			//newMasterIp := ips[i][0]
-	//			if err = c.addNode(pods[0][0], pods[i][0].Status.PodIP+":6379", ip+":6379", ""); err != nil {
-	//				return err
-	//			}
-	//		}
-	//		nds = processNodesConf(getClusterNodes(ip))
-	//	}
-	//
-	//	// add slots to empty master(s)
-	//	var (
-	//		masterIDsWithLessSlots, masterIDsWithExtraSlots []string
-	//		//nonEmptyMastersId, emptyMastersId                []string
-	//		slotsPerMaster, slotsRequired int //, allocatedSlotsCnt int
-	//	)
-	//
-	//	slotsPerMaster = 16384 / c.Cluster.MasterCnt
-	//	for masterID, master := range nds {
-	//		if master.SlotsCnt < slotsPerMaster {
-	//			masterIDsWithLessSlots = append(masterIDsWithLessSlots, masterID)
-	//			//emptyMastersId = append(emptyMastersId, masterId)
-	//		} else {
-	//			masterIDsWithExtraSlots = append(masterIDsWithExtraSlots, masterID)
-	//			//nonEmptyMastersId = append(nonEmptyMastersId, masterId)
-	//		}
-	//	}
-	//
-	//	//===================================
-	//
-	//	for i, to := range masterIDsWithLessSlots {
-	//		slotsRequired = slotsPerMaster
-	//		if i == len(masterIDsWithLessSlots)-1 {
-	//			// this change is only for the last master that needs slots
-	//			slotsRequired = 16384 - (slotsPerMaster * i)
-	//		}
-	//
-	//		//allocatedSlotsCnt = nds[to].SlotsCnt
-	//		for _, from := range masterIDsWithExtraSlots {
-	//			// compare with slotsRequired
-	//			if nds[to].SlotsCnt < slotsRequired {
-	//				// But compare with slotsPerMaster. Existing masters always need slots equal to
-	//				// slotsPerMaster not slotsRequired since slotsRequired may change for last master
-	//				// that is being added.
-	//				if nds[from].SlotsCnt > slotsPerMaster {
-	//					slots := nds[from].SlotsCnt - slotsPerMaster
-	//					if slots > slotsRequired-nds[to].SlotsCnt {
-	//						slots = slotsRequired - nds[to].SlotsCnt
-	//					}
-	//
-	//					reshard(nds, from, to, slots)
-	//					nds[to].SlotsCnt += slots
-	//					nds[from].SlotsCnt -= slots
-	//				}
-	//			} else {
-	//				break
-	//			}
-	//		}
-	//	}
-	//
-	//	//===================================
-	//
 	if err = c.ensureNewMastersBeAdded(pods); err != nil {
 		return err
 	}
@@ -1567,111 +1010,6 @@ func (c Config) configureClusterState(pods [][]*core.Pod) error {
 		return err
 	}
 
-	////==================================
-	//
-	////for i, emptyMasterId := range emptyMastersId {
-	////	slotsRequired = slotsPerMaster
-	////	if i == len(emptyMastersId)-1 {
-	////		// this change is only for last master that is being added
-	////		slotsRequired = 16384 - (slotsPerMaster * i)
-	////	}
-	////
-	////	allocatedSlotsCnt = nds[emptyMasterId].SlotsCnt
-	////	for _, masterId := range nonEmptyMastersId {
-	////		// compare with slotsRequired
-	////		if allocatedSlotsCnt < slotsRequired {
-	////			// But compare with slotsPerMaster. Existing masters always need slots equal to
-	////			// slotsPerMaster not slotsRequired since slotsRequired may change for last master
-	////			// that is being added.
-	////			if nds[masterId].SlotsCnt > slotsPerMaster {
-	////				slots := nds[masterId].SlotsCnt - slotsPerMaster
-	////				if slots > slotsRequired - allocatedSlotsCnt {
-	////					slots = slotsRequired - allocatedSlotsCnt
-	////				}
-	////
-	////				reshard(masterId, emptyMasterId, strconv.Itoa(slots))
-	////				allocatedSlotsCnt += slots
-	////				nds[masterId].SlotsCnt -= slots
-	////			}
-	////		} else {
-	////			break
-	////		}
-	////	}
-	////}
-	//
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//ip = pods[0][0].Status.PodIP
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//nds = processNodesConf(nodesConf)
-	//existingMasterCnt = len(nds)
-	//
-	//// add new slave(s)
-	//for masterID, master := range nds {
-	//	if len(master.Slaves) < c.Cluster.Replicas {
-	//		for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//			masterFound := false
-	//			curSlaves := sets.NewString()
-	//			for j := 0; j <= c.Cluster.Replicas; j++ {
-	//				if ips[i][j] == master.IP {
-	//					masterFound = true
-	//					for _, slave := range master.Slaves {
-	//						curSlaves.Insert(slave.IP)
-	//					}
-	//					break
-	//				}
-	//				//slaves.Insert(ips[i][j])
-	//			}
-	//
-	//			if masterFound {
-	//				for j := 0; j <= c.Cluster.Replicas; j++ {
-	//					if ips[i][j] != master.IP && !curSlaves.Has(ips[i][j]) {
-	//						addNode(ips[i][j]+":6379", master.IP+":6379", masterID)
-	//					}
-	//				}
-	//				break
-	//			}
-	//		}
-	//	}
-	//}
-	////for i := 0; i < c.Cluster.MasterCnt; i++ {
-	////	curMasterID := ""
-	////	curMasterIP := ""
-	////FindMaster:
-	////	for j := 0; j <= c.Cluster.Replicas; j++ {
-	////		//curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
-	////		//	c.BaseName, i, j, c.GoverningService, c.Namespace))
-	////		//curIP := ips[i][j]
-	////		for _, master := range nds {
-	////			if master.IP == ips[i][j] {
-	////				curMasterIP = ips[i][j]
-	////				curMasterID = master.ID
-	////				break FindMaster
-	////			}
-	////		}
-	////	}
-	////
-	////	for j := 0; j <= c.Cluster.Replicas; j++ {
-	////		//curIp := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
-	////		//	c.BaseName, i, j, c.GoverningService, c.Namespace))
-	////		//curIP := ips[i][j]
-	////		exists := false
-	////	FindSlave:
-	////		for _, slave := range nds[curMasterID].Slaves {
-	////			if slave.IP == ips[i][j] {
-	////				exists = true
-	////				break FindSlave
-	////			}
-	////		}
-	////
-	////		if !exists {
-	////			addNode(ips[i][j]+":6379", curMasterIP+":6379", curMasterID)
-	////		}
-	////	}
-	////}
 	if err = c.ensureNewSlavesBeAdded(pods); err != nil {
 		return err
 	}
@@ -1685,14 +1023,15 @@ func (c Config) ensureCluster(pods [][]*core.Pod) error {
 	var (
 		masterAddrs   []string
 		masterNodeIds []string
-		//pods          [][]*core.Pod
-		err       error
-		nodesConf string
-		nodes     [][]RedisNode
+		err           error
+		nodesConf     string
+		nodes         [][]RedisNode
 	)
 	masterAddrs = make([]string, c.Cluster.MasterCnt)
 	masterNodeIds = make([]string, c.Cluster.MasterCnt)
+
 	// ======================
+
 	nodes, err = c.getOrderedNodes(pods)
 	if err != nil {
 		return err
@@ -1722,44 +1061,8 @@ func (c Config) ensureCluster(pods [][]*core.Pod) error {
 		}
 	}
 	time.Sleep(time.Second * 15)
+
 	// ==================================
-	//
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
-	//	return err
-	//}
-	//
-	//if strings.Count(nodesConf, "master") > 1 {
-	//	return nil
-	//}
-	//
-	//for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//	//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local",
-	//	//	c.BaseName, i, 0, c.GoverningService, c.Namespace))
-	//	//ip := ips[i][0]
-	//	masterAddrs[i] = pods[i][0].Status.PodIP + ":6379"
-	//	if nodesConf, err = c.getClusterNodes(pods[0][0], pods[i][0].Status.PodIP); err != nil {
-	//		return err
-	//	}
-	//	masterNodeIds[i] = getNodeId(getMyConf(nodesConf))
-	//}
-	//if err = c.createCluster(pods[0][0], masterAddrs...); err != nil {
-	//	return err
-	//}
-	//
-	//for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//	for j := 1; j <= c.Cluster.Replicas; j++ {
-	//		//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, i, j, c.GoverningService, c.Namespace))
-	//		//ip := ips[i][j]
-	//		if err = c.addNode(
-	//			pods[0][0],
-	//			pods[i][j].Status.PodIP+":6379", masterAddrs[i], masterNodeIds[i]); err != nil {
-	//			return err
-	//		}
-	//	}
-	//}
 
 	return nil
 }

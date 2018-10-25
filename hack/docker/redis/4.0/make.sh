@@ -6,7 +6,7 @@ IMG=redis
 SUFFIX=v1
 PATCH="4.0.11-$SUFFIX"
 #TAG="4.0-$SUFFIX"
-TAG="4.0-exp"
+TAG="4.0-exp1"
 ALT_TAG="4-$SUFFIX"
 
 docker pull "$DOCKER_REGISTRY/$IMG:$PATCH"
