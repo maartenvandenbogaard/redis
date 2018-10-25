@@ -106,7 +106,7 @@ func (a *RedisValidator) Admit(req *admission.AdmissionRequest) *admission.Admis
 			}
 		}
 		// validate database specs
-		if err = ValidateRedis(a.client, a.extClient, obj.(*api.Redis), false); err != nil {
+		if err = ValidateRedis(a.client, a.extClient, obj.(*api.Redis)); err != nil {
 			return hookapi.StatusForbidden(err)
 		}
 	}
@@ -116,7 +116,7 @@ func (a *RedisValidator) Admit(req *admission.AdmissionRequest) *admission.Admis
 
 // ValidateRedis checks if the object satisfies all the requirements.
 // It is not method of Interface, because it is referenced from controller package too.
-func ValidateRedis(client kubernetes.Interface, extClient cs.Interface, redis *api.Redis, strictValidation bool) error {
+func ValidateRedis(client kubernetes.Interface, extClient cs.Interface, redis *api.Redis) error {
 	if redis.Spec.Version == "" {
 		return errors.New(`'spec.version' is missing`)
 	}
@@ -124,31 +124,32 @@ func ValidateRedis(client kubernetes.Interface, extClient cs.Interface, redis *a
 		return err
 	}
 
-	if redis.Spec.Replicas == nil || *redis.Spec.Replicas != 1 {
-		return fmt.Errorf(`spec.replicas "%v" invalid. Value must be one`, redis.Spec.Replicas)
+	if redis.Spec.Mode != api.RedisModeStandalone && redis.Spec.Mode != api.RedisModeCluster {
+		return fmt.Errorf(`spec.mode "%v" invalid. Value must be one of "%v" or "%v"`,
+			redis.Spec.Mode, api.RedisModeStandalone, api.RedisModeCluster)
+	}
+
+	//if redis.Spec.Mode == api.RedisModeCluster && redis.Spec.Cluster == nil {
+	//	return fmt.Errorf(`spec.cluster "%v" invalid. It is required.`, redis.Spec.Cluster)
+	//}
+
+	//if redis.Spec.Mode == api.RedisModeCluster &&
+	//	(redis.Spec.Cluster.Replicas == nil || *redis.Spec.Cluster.Replicas < 0) {
+	//	return fmt.Errorf(`spec.cluster.replicationFactor "%v" invalid. Value must be >= 0`, redis.Spec.Cluster.Master)
+	//}
+	if redis.Spec.Mode == api.RedisModeCluster && *redis.Spec.Cluster.Replicas < 0 {
+		return fmt.Errorf(`spec.cluster.replicationFactor "%v" invalid. Value must be >= 0`, redis.Spec.Cluster.Master)
+	}
+
+	if redis.Spec.Mode == api.RedisModeCluster && *redis.Spec.Cluster.Master < 3 {
+		return fmt.Errorf(`spec.cluster.master "%v" invalid. Value must be >= 3`, redis.Spec.Cluster.Master)
 	}
 
 	if redis.Spec.StorageType == "" {
 		return fmt.Errorf(`'spec.storageType' is missing`)
 	}
-	if redis.Spec.StorageType != api.StorageTypeDurable && redis.Spec.StorageType != api.StorageTypeEphemeral {
-		return fmt.Errorf(`'spec.storageType' %s is invalid`, redis.Spec.StorageType)
-	}
 	if err := amv.ValidateStorage(client, redis.Spec.StorageType, redis.Spec.Storage); err != nil {
 		return err
-	}
-
-	if strictValidation {
-		// Check if redisVersion is deprecated.
-		// If deprecated, return error
-		redisVersion, err := extClient.CatalogV1alpha1().RedisVersions().Get(string(redis.Spec.Version), metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if redisVersion.Spec.Deprecated {
-			return fmt.Errorf("redis %s/%s is using deprecated version %v. Skipped processing",
-				redis.Namespace, redis.Name, redisVersion.Name)
-		}
 	}
 
 	if redis.Spec.UpdateStrategy.Type == "" {
@@ -157,10 +158,6 @@ func ValidateRedis(client kubernetes.Interface, extClient cs.Interface, redis *a
 
 	if redis.Spec.TerminationPolicy == "" {
 		return fmt.Errorf(`'spec.terminationPolicy' is missing`)
-	}
-
-	if redis.Spec.StorageType == api.StorageTypeEphemeral && redis.Spec.TerminationPolicy == api.TerminationPolicyPause {
-		return fmt.Errorf(`'spec.terminationPolicy: Pause' can not be used for 'Ephemeral' storage`)
 	}
 
 	if err := amv.ValidateEnvVar(redis.Spec.PodTemplate.Spec.Env, forbiddenEnvVars, api.ResourceKindRedis); err != nil {

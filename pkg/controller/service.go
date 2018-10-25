@@ -114,7 +114,7 @@ func (c *Controller) createService(redis *api.Redis) (kutil.VerbType, error) {
 func (c *Controller) ensureStatsService(redis *api.Redis) (kutil.VerbType, error) {
 	// return if monitoring is not prometheus
 	if redis.GetMonitoringVendor() != mona.VendorPrometheus {
-		log.Infoln("spec.monitor.agent is not coreos-operator or builtin.")
+		log.Warningln("spec.monitor.agent is not coreos-operator or builtin.")
 		return kutil.VerbUnchanged, nil
 	}
 
@@ -167,3 +167,42 @@ func (c *Controller) ensureStatsService(redis *api.Redis) (kutil.VerbType, error
 	}
 	return vt, nil
 }
+
+//func (c *Controller) createRedisGoverningService(redis *api.Redis) (string, error) {
+//	ref, rerr := reference.GetReference(clientsetscheme.Scheme, redis)
+//	if rerr != nil {
+//		return "", rerr
+//	}
+//
+//	service := &core.Service{
+//		ObjectMeta: metav1.ObjectMeta{
+//			Name:      redis.ServiceName() + RedisGoverningServiceSuffix,
+//			Namespace: redis.Namespace,
+//			Labels:    redis.OffshootLabels(),
+//		},
+//		Spec: core.ServiceSpec{
+//			Ports: []core.ServicePort{
+//				{
+//					Name:       "db",
+//					Port:       6379,
+//					TargetPort: intstr.FromInt(6379),
+//				},
+//				{
+//					Name:       "gossip",
+//					Port:       16379,
+//					TargetPort: intstr.FromInt(16379),
+//				},
+//			},
+//			ClusterIP: core.ClusterIPNone,
+//			Selector:  redis.OffshootSelectors(),
+//		},
+//	}
+//	core_util.EnsureOwnerReference(&service.ObjectMeta, ref)
+//
+//	_, err := c.Client.CoreV1().Services(redis.Namespace).Create(service)
+//	if err != nil && !kerr.IsAlreadyExists(err) {
+//		return "", err
+//	}
+//
+//	return service.Name, nil
+//}

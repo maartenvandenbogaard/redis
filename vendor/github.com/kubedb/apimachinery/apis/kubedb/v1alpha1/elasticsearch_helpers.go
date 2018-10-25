@@ -214,11 +214,7 @@ func (e *ElasticsearchSpec) SetDefaults() {
 		e.UpdateStrategy.Type = apps.RollingUpdateStatefulSetStrategyType
 	}
 	if e.TerminationPolicy == "" {
-		if e.StorageType == StorageTypeEphemeral {
-			e.TerminationPolicy = TerminationPolicyDelete
-		} else {
-			e.TerminationPolicy = TerminationPolicyPause
-		}
+		e.TerminationPolicy = TerminationPolicyPause
 	}
 }
 

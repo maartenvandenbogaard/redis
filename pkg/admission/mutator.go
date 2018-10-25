@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/appscode/go/log"
-	"github.com/appscode/go/types"
 	hookapi "github.com/appscode/kubernetes-webhook-util/admission/v1beta1"
 	meta_util "github.com/appscode/kutil/meta"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
@@ -97,10 +96,6 @@ func (a *RedisMutator) Admit(req *admission.AdmissionRequest) *admission.Admissi
 func setDefaultValues(client kubernetes.Interface, extClient cs.Interface, redis *api.Redis) (runtime.Object, error) {
 	if redis.Spec.Version == "" {
 		return nil, errors.New(`'spec.version' is missing`)
-	}
-
-	if redis.Spec.Replicas == nil {
-		redis.Spec.Replicas = types.Int32P(1)
 	}
 
 	redis.SetDefaults()

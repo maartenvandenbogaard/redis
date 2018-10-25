@@ -22,7 +22,7 @@ import (
 )
 
 func (c *Controller) create(redis *api.Redis) error {
-	if err := validator.ValidateRedis(c.Client, c.ExtClient, redis, true); err != nil {
+	if err := validator.ValidateRedis(c.Client, c.ExtClient, redis); err != nil {
 		c.recorder.Event(
 			redis,
 			core.EventTypeWarning,
@@ -31,6 +31,25 @@ func (c *Controller) create(redis *api.Redis) error {
 		)
 		log.Errorln(err)
 		return nil // user error so just record error and don't retry.
+	}
+
+	// Check if redisVersion is deprecated.
+	// If deprecated, add event and return nil (stop processing.)
+	redisVersion, err := c.ExtClient.CatalogV1alpha1().RedisVersions().Get(string(redis.Spec.Version), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if redisVersion.Spec.Deprecated {
+		c.recorder.Eventf(
+			redis,
+			core.EventTypeWarning,
+			eventer.EventReasonInvalid,
+			"RedisVersion %v is deprecated. Skipped processing.",
+			redisVersion.Name,
+		)
+		log.Errorf("Redis %s/%s is using deprecated version %v. Skipped processing.",
+			redis.Namespace, redis.Name, redisVersion.Name)
+		return nil
 	}
 
 	// Delete Matching DormantDatabase if exists any
@@ -75,6 +94,27 @@ func (c *Controller) create(redis *api.Redis) error {
 			err,
 		)
 		return err
+	}
+	//governingService, err := c.createRedisGoverningService(redis)
+	//if err != nil {
+	//	if ref, rerr := reference.GetReference(clientsetscheme.Scheme, redis); rerr == nil {
+	//		c.recorder.Eventf(
+	//			ref,
+	//			core.EventTypeWarning,
+	//			eventer.EventReasonFailedToCreate,
+	//			`Failed to create Service: "%v". Reason: %v`,
+	//			governingService,
+	//			err,
+	//		)
+	//	}
+	//}
+	//c.GoverningService = governingService
+
+	// ensure ConfigMap for redis configuration file (i.e. redis.conf)
+	if redis.Spec.Mode == api.RedisModeCluster {
+		if err := c.ensureRedisConfig(redis); err != nil {
+			return err
+		}
 	}
 
 	// ensure database Service

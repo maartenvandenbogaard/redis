@@ -10,6 +10,7 @@ import (
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	"github.com/kubedb/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha1/util"
 	. "github.com/onsi/gomega"
+	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -27,6 +28,10 @@ func (f *Invocation) Redis() *api.Redis {
 		},
 		Spec: api.RedisSpec{
 			Version: jsonTypes.StrYo(DBVersion),
+			UpdateStrategy: apps.StatefulSetUpdateStrategy{
+				Type: apps.RollingUpdateStatefulSetStrategyType,
+			},
+			TerminationPolicy: api.TerminationPolicyPause,
 			Storage: &core.PersistentVolumeClaimSpec{
 				Resources: core.ResourceRequirements{
 					Requests: core.ResourceList{
@@ -37,6 +42,17 @@ func (f *Invocation) Redis() *api.Redis {
 			},
 		},
 	}
+}
+
+func (f *Invocation) RedisCluster() *api.Redis {
+	redis := f.Redis()
+	redis.Spec.Mode = api.RedisModeCluster
+	redis.Spec.Cluster = &api.RedisClusterSpec{
+		Master:   types.Int32P(3),
+		Replicas: types.Int32P(1),
+	}
+
+	return redis
 }
 
 func (f *Framework) CreateRedis(obj *api.Redis) error {
