@@ -4,8 +4,9 @@ set -xeou pipefail
 DOCKER_REGISTRY=${DOCKER_REGISTRY:-kubedb}
 IMG=redis
 SUFFIX=v1
-PATCH="4.0.6-$SUFFIX"
-TAG="4.0-$SUFFIX"
+PATCH="4.0.11-$SUFFIX"
+#TAG="4.0-$SUFFIX"
+TAG="4.0-exp"
 ALT_TAG="4-$SUFFIX"
 
 docker pull "$DOCKER_REGISTRY/$IMG:$PATCH"
