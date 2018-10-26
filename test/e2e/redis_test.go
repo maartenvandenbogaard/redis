@@ -50,21 +50,6 @@ var _ = Describe("Redis", func() {
 	}
 
 	var deleteTestResource = func() {
-		if redis == nil {
-			// No redis. So, no cleanup
-			return
-		}
-
-		By("Check if Redis " + redis.Name + " exists.")
-		rd, err := f.GetRedis(redis.ObjectMeta)
-		if err != nil {
-			if kerr.IsNotFound(err) {
-				// Redis was not created. Hence, rest of cleanup is not necessary.
-				return
-			}
-			Expect(err).NotTo(HaveOccurred())
-		}
-
 		By("Delete redis")
 		err = f.DeleteRedis(redis.ObjectMeta)
 		if err != nil {
@@ -75,22 +60,19 @@ var _ = Describe("Redis", func() {
 			Expect(err).NotTo(HaveOccurred())
 		}
 
-		if rd.Spec.TerminationPolicy == api.TerminationPolicyPause {
+		By("Wait for redis to be paused")
+		f.EventuallyDormantDatabaseStatus(redis.ObjectMeta).Should(matcher.HavePaused())
 
-			By("Wait for redis to be paused")
-			f.EventuallyDormantDatabaseStatus(redis.ObjectMeta).Should(matcher.HavePaused())
+		By("WipeOut redis")
+		_, err := f.PatchDormantDatabase(redis.ObjectMeta, func(in *api.DormantDatabase) *api.DormantDatabase {
+			in.Spec.WipeOut = true
+			return in
+		})
+		Expect(err).NotTo(HaveOccurred())
 
-			By("WipeOut redis")
-			_, err := f.PatchDormantDatabase(redis.ObjectMeta, func(in *api.DormantDatabase) *api.DormantDatabase {
-				in.Spec.WipeOut = true
-				return in
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Delete Dormant Database")
-			err = f.DeleteDormantDatabase(redis.ObjectMeta)
-			Expect(err).NotTo(HaveOccurred())
-		}
+		By("Delete Dormant Database")
+		err = f.DeleteDormantDatabase(redis.ObjectMeta)
+		Expect(err).NotTo(HaveOccurred())
 
 		By("Wait for redis resources to be wipedOut")
 		f.EventuallyWipedOut(redis.ObjectMeta).Should(Succeed())
@@ -152,6 +134,33 @@ var _ = Describe("Redis", func() {
 					By("Retrieving item from database")
 					f.EventuallyGetItem(redis.ObjectMeta, key).Should(BeEquivalentTo(value))
 
+				})
+			})
+		})
+
+		Context("DoNotTerminate", func() {
+			BeforeEach(func() {
+				redis.Spec.TerminationPolicy = api.TerminationPolicyDoNotTerminate
+			})
+
+			It("should work successfully", func() {
+				// Create and wait for running Redis
+				createAndWaitForRunning()
+
+				By("Delete redis")
+				err = f.DeleteRedis(redis.ObjectMeta)
+				Expect(err).Should(HaveOccurred())
+
+				By("Redis is not paused. Check for redis")
+				f.EventuallyRedis(redis.ObjectMeta).Should(BeTrue())
+
+				By("Check for Running redis")
+				f.EventuallyRedisRunning(redis.ObjectMeta).Should(BeTrue())
+
+				By("Update redis to set spec.terminationPolicy = Pause")
+				f.TryPatchRedis(redis.ObjectMeta, func(in *api.Redis) *api.Redis {
+					in.Spec.TerminationPolicy = api.TerminationPolicyPause
+					return in
 				})
 			})
 		})
@@ -260,33 +269,6 @@ var _ = Describe("Redis", func() {
 		})
 
 		Context("Termination Policy", func() {
-
-			Context("with TerminationPolicyDoNotTerminate", func() {
-				BeforeEach(func() {
-					redis.Spec.TerminationPolicy = api.TerminationPolicyDoNotTerminate
-				})
-
-				It("should work successfully", func() {
-					// Create and wait for running Redis
-					createAndWaitForRunning()
-
-					By("Delete redis")
-					err = f.DeleteRedis(redis.ObjectMeta)
-					Expect(err).Should(HaveOccurred())
-
-					By("Redis is not paused. Check for redis")
-					f.EventuallyRedis(redis.ObjectMeta).Should(BeTrue())
-
-					By("Check for Running redis")
-					f.EventuallyRedisRunning(redis.ObjectMeta).Should(BeTrue())
-
-					By("Update redis to set spec.terminationPolicy = Pause")
-					f.TryPatchRedis(redis.ObjectMeta, func(in *api.Redis) *api.Redis {
-						in.Spec.TerminationPolicy = api.TerminationPolicyPause
-						return in
-					})
-				})
-			})
 
 			Context("with TerminationPolicyPause (default)", func() {
 				var shouldRunWithTerminationPause = func() {
@@ -478,56 +460,6 @@ var _ = Describe("Redis", func() {
 				})
 			})
 
-		})
-
-		Context("StorageType ", func() {
-
-			var shouldRunSuccessfully = func() {
-
-				if skipMessage != "" {
-					Skip(skipMessage)
-				}
-
-				// Create Redis
-				createAndWaitForRunning()
-
-				By("Inserting item into database")
-				f.EventuallySetItem(redis.ObjectMeta, key, value).Should(BeTrue())
-
-				By("Retrieving item from database")
-				f.EventuallyGetItem(redis.ObjectMeta, key).Should(BeEquivalentTo(value))
-			}
-
-			Context("Ephemeral", func() {
-
-				BeforeEach(func() {
-					redis.Spec.StorageType = api.StorageTypeEphemeral
-					redis.Spec.Storage = nil
-				})
-
-				Context("General Behaviour", func() {
-
-					BeforeEach(func() {
-						redis.Spec.TerminationPolicy = api.TerminationPolicyWipeOut
-					})
-
-					It("should run successfully", shouldRunSuccessfully)
-				})
-
-				Context("With TerminationPolicyPause", func() {
-
-					BeforeEach(func() {
-						redis.Spec.TerminationPolicy = api.TerminationPolicyPause
-					})
-
-					It("should reject to create Redis object", func() {
-
-						By("Creating Redis: " + redis.Name)
-						err := f.CreateRedis(redis)
-						Expect(err).To(HaveOccurred())
-					})
-				})
-			})
 		})
 	})
 })

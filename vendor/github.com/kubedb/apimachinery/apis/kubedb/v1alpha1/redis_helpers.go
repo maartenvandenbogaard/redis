@@ -212,11 +212,7 @@ func (r *RedisSpec) SetDefaults() {
 		r.UpdateStrategy.Type = apps.RollingUpdateStatefulSetStrategyType
 	}
 	if r.TerminationPolicy == "" {
-		if r.StorageType == StorageTypeEphemeral {
-			r.TerminationPolicy = TerminationPolicyDelete
-		} else {
-			r.TerminationPolicy = TerminationPolicyPause
-		}
+		r.TerminationPolicy = TerminationPolicyPause
 	}
 }
 

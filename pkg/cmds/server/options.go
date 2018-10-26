@@ -32,9 +32,6 @@ type ExtraOptions struct {
 
 	PrometheusCrdGroup string
 	PrometheusCrdKinds prom.CrdKinds
-
-	EnableMutatingWebhook   bool
-	EnableValidatingWebhook bool
 }
 
 func (s ExtraOptions) WatchNamespace() string {
@@ -75,9 +72,7 @@ func (s *ExtraOptions) AddGoFlags(fs *flag.FlagSet) {
 	fs.StringVar(&s.PrometheusCrdGroup, "prometheus-crd-apigroup", s.PrometheusCrdGroup, "prometheus CRD  API group name")
 	fs.Var(&s.PrometheusCrdKinds, "prometheus-crd-kinds", " - EXPERIMENTAL (could be removed in future releases) - customize CRD kind names")
 
-	fs.BoolVar(&s.EnableMutatingWebhook, "enable-mutating-webhook", s.EnableMutatingWebhook, "If true, enables mutating webhooks for KubeDB CRDs.")
-	fs.BoolVar(&s.EnableValidatingWebhook, "enable-validating-webhook", s.EnableValidatingWebhook, "If true, enables validating webhooks for KubeDB CRDs.")
-	fs.BoolVar(&apis.EnableStatusSubresource, "enable-status-subresource", apis.EnableStatusSubresource, "If true, uses sub resource for KubeDB crds.")
+	fs.BoolVar(&apis.EnableStatusSubresource, "enable-status-subresource", apis.EnableStatusSubresource, "If true, uses sub resource for Voyager crds.")
 }
 
 func (s *ExtraOptions) AddFlags(fs *pflag.FlagSet) {
@@ -99,8 +94,6 @@ func (s *ExtraOptions) ApplyTo(cfg *controller.OperatorConfig) error {
 	cfg.MaxNumRequeues = s.MaxNumRequeues
 	cfg.NumThreads = s.NumThreads
 	cfg.WatchNamespace = s.WatchNamespace()
-	cfg.EnableMutatingWebhook = s.EnableMutatingWebhook
-	cfg.EnableValidatingWebhook = s.EnableValidatingWebhook
 
 	if cfg.KubeClient, err = kubernetes.NewForConfig(cfg.ClientConfig); err != nil {
 		return err

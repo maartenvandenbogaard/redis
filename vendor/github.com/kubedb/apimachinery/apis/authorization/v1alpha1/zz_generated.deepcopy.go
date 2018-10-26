@@ -30,18 +30,30 @@ func (in *AuthManagerRef) DeepCopyInto(out *AuthManagerRef) {
 	*out = *in
 	if in.Namespace != nil {
 		in, out := &in.Namespace, &out.Namespace
-		*out = new(string)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
 	}
 	if in.Name != nil {
 		in, out := &in.Name, &out.Name
-		*out = new(string)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
 	}
 	if in.Parameters != nil {
 		in, out := &in.Parameters, &out.Parameters
-		*out = new(runtime.RawExtension)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(runtime.RawExtension)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	return
 }
@@ -204,7 +216,11 @@ func (in *MongoDBRoleBindingStatus) DeepCopyInto(out *MongoDBRoleBindingStatus) 
 	*out = *in
 	if in.ObservedGeneration != nil {
 		in, out := &in.ObservedGeneration, &out.ObservedGeneration
-		*out = (*in).DeepCopy()
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = (*in).DeepCopy()
+		}
 	}
 	out.Lease = in.Lease
 	if in.Conditions != nil {
@@ -307,7 +323,11 @@ func (in *MongoDBRoleStatus) DeepCopyInto(out *MongoDBRoleStatus) {
 	*out = *in
 	if in.ObservedGeneration != nil {
 		in, out := &in.ObservedGeneration, &out.ObservedGeneration
-		*out = (*in).DeepCopy()
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = (*in).DeepCopy()
+		}
 	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
@@ -459,7 +479,11 @@ func (in *MySQLRoleBindingStatus) DeepCopyInto(out *MySQLRoleBindingStatus) {
 	*out = *in
 	if in.ObservedGeneration != nil {
 		in, out := &in.ObservedGeneration, &out.ObservedGeneration
-		*out = (*in).DeepCopy()
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = (*in).DeepCopy()
+		}
 	}
 	out.Lease = in.Lease
 	if in.Conditions != nil {
@@ -562,7 +586,11 @@ func (in *MySQLRoleStatus) DeepCopyInto(out *MySQLRoleStatus) {
 	*out = *in
 	if in.ObservedGeneration != nil {
 		in, out := &in.ObservedGeneration, &out.ObservedGeneration
-		*out = (*in).DeepCopy()
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = (*in).DeepCopy()
+		}
 	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
@@ -714,7 +742,11 @@ func (in *PostgresRoleBindingStatus) DeepCopyInto(out *PostgresRoleBindingStatus
 	*out = *in
 	if in.ObservedGeneration != nil {
 		in, out := &in.ObservedGeneration, &out.ObservedGeneration
-		*out = (*in).DeepCopy()
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = (*in).DeepCopy()
+		}
 	}
 	out.Lease = in.Lease
 	if in.Conditions != nil {
@@ -827,7 +859,11 @@ func (in *PostgresRoleStatus) DeepCopyInto(out *PostgresRoleStatus) {
 	*out = *in
 	if in.ObservedGeneration != nil {
 		in, out := &in.ObservedGeneration, &out.ObservedGeneration
-		*out = (*in).DeepCopy()
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = (*in).DeepCopy()
+		}
 	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions

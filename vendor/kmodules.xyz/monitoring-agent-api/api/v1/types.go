@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/appscode/kutil"
-	core "k8s.io/api/core/v1"
 )
 
 type AgentType string
@@ -28,10 +27,9 @@ func (at AgentType) Vendor() string {
 }
 
 type AgentSpec struct {
+	// Valid values: coreos-prometheus-operator
 	Agent      AgentType       `json:"agent,omitempty"`
 	Prometheus *PrometheusSpec `json:"prometheus,omitempty"`
-	// Compute Resources required by the exporter container.
-	Resources core.ResourceRequirements `json:"resources,omitempty"`
 }
 
 type PrometheusSpec struct {

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"github.com/appscode/go/log/golog"
-	reg_util "github.com/appscode/kutil/admissionregistration/v1beta1"
 	"github.com/appscode/kutil/discovery"
 	pcm "github.com/coreos/prometheus-operator/pkg/client/monitoring/v1"
 	cs "github.com/kubedb/apimachinery/client/clientset/versioned"
@@ -14,11 +13,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-)
-
-const (
-	mutatingWebhookConfig   = "mutators.kubedb.com"
-	validatingWebhookConfig = "validators.kubedb.com"
 )
 
 var (
@@ -69,16 +63,6 @@ func (c *OperatorConfig) New() (*Controller, error) {
 
 	if err := ctrl.EnsureCustomResourceDefinitions(); err != nil {
 		return nil, err
-	}
-	if c.EnableMutatingWebhook {
-		if err := reg_util.UpdateMutatingWebhookCABundle(c.ClientConfig, mutatingWebhookConfig); err != nil {
-			return nil, err
-		}
-	}
-	if c.EnableValidatingWebhook {
-		if err := reg_util.UpdateValidatingWebhookCABundle(c.ClientConfig, validatingWebhookConfig); err != nil {
-			return nil, err
-		}
 	}
 
 	if err := ctrl.Init(); err != nil {
