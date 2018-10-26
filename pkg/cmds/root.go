@@ -49,7 +49,6 @@ func NewRootCmd(version string) *cobra.Command {
 
 	stopCh := genericapiserver.SetupSignalHandler()
 	rootCmd.AddCommand(NewCmdRun(os.Stdout, os.Stderr, stopCh))
-	rootCmd.AddCommand(NewCmdConfigureCluster())
 
 	return rootCmd
 }

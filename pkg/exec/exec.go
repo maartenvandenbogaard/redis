@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/appscode/go/log"
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -26,8 +25,7 @@ type ExecOptions struct {
 	EnableStdout bool
 	EnableStderr bool
 	EnableTTY    bool
-
-	Input string
+	Input        string
 }
 
 func (o ExecOptions) GetPodExecOptions(containerName string, command ...string) runtime.Object {
@@ -94,7 +92,6 @@ func (e *Exec) Run(pod *core.Pod, command ...string) (string, error) {
 		Namespace(pod.Namespace).
 		SubResource("exec")
 	req.VersionedParams(e.Options.GetPodExecOptions(pod.Spec.Containers[0].Name, command...), scheme.ParameterCodec)
-	log.Infoln(command)
 
 	exec, err := remotecommand.NewSPDYExecutor(e.ClientConfig, "POST", req.URL())
 	if err != nil {
@@ -102,15 +99,12 @@ func (e *Exec) Run(pod *core.Pod, command ...string) (string, error) {
 	}
 
 	err = exec.Stream(e.Options.GetStreamOptions(&execOut, &execErr))
-	//log.Infoln("out = ", execOut.String())
 
 	if err != nil {
-		log.Infoln("err = ", err.Error())
 		return "", fmt.Errorf("could not execute: %v", err)
 	}
 
 	if execErr.Len() > 0 {
-		log.Infoln("execErr = ", execErr.String())
 		return "", fmt.Errorf("stderr: %v", execErr.String())
 	}
 

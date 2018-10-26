@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/appscode/go/types"
+	"github.com/appscode/kutil"
 	core_util "github.com/appscode/kutil/core/v1"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	kutildb "github.com/kubedb/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha1/util"
@@ -33,115 +34,100 @@ appendonly yes
 protected-mode no
 `
 
-// fixIPConfig script ensures the host ip in nodes.conf file is same as the IP of the pod (which is responsible
-// for current redis server) in case of pod restart.
-var fixIPConfig = `
-CLUSTER_CONFIG="/data/nodes.conf"
-if [ -f ${CLUSTER_CONFIG} ]; then
-    if [ -z "${POD_IP}" ]; then
-        echo "Unable to determine Pod IP address!"
-        exit 1
-    fi
-    echo "Updating my IP to ${POD_IP} in ${CLUSTER_CONFIG}"
-    sed -i.bak -e '/myself/ s/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/${POD_IP}/' ${CLUSTER_CONFIG}
-fi
-
-redis-server $REDIS_CONFIG`
-
 func (c *Controller) ensureRedisConfig(redis *api.Redis) error {
 	if redis.Spec.ConfigSource == nil {
-		data := map[string]string{
-			RedisConfigKey: redisConfig,
-		}
-		name := redis.ConfigMapName()
-		cm, err := c.createConfigMap(name, data, redis)
-		if err != nil {
+		// Check if configmap name exists
+		if err := c.checkConfigMap(redis); err != nil {
 			return err
 		}
 
-		redis.Spec.ConfigSource = &core.VolumeSource{}
-		rd, _, err := kutildb.PatchRedis(c.ExtClient.KubedbV1alpha1(), redis, func(in *api.Redis) *api.Redis {
-			in.Spec.ConfigSource = &core.VolumeSource{
-				ConfigMap: &core.ConfigMapVolumeSource{
-					LocalObjectReference: core.LocalObjectReference{
-						Name: cm.Name,
-					},
-					DefaultMode: types.Int32P(511),
-				},
-			}
-			return in
-		})
+		// create configmap for redis
+		configmap, vt, err := c.createConfigMap(redis)
 		if err != nil {
-			if ref, rerr := reference.GetReference(clientsetscheme.Scheme, redis); rerr == nil {
+			c.recorder.Eventf(
+				redis,
+				core.EventTypeWarning,
+				eventer.EventReasonFailedToCreate,
+				"Failed to CreateOrPatch configmap. Reason: %v",
+				err,
+			)
+			return err
+		} else if vt != kutil.VerbUnchanged {
+			// add configmap to redis.spec.configSource
+			redis.Spec.ConfigSource = &core.VolumeSource{}
+			rd, _, err := kutildb.PatchRedis(c.ExtClient.KubedbV1alpha1(), redis, func(in *api.Redis) *api.Redis {
+				in.Spec.ConfigSource = &core.VolumeSource{
+					ConfigMap: &core.ConfigMapVolumeSource{
+						LocalObjectReference: core.LocalObjectReference{
+							Name: configmap.Name,
+						},
+						DefaultMode: types.Int32P(511),
+					},
+				}
+				return in
+			})
+			if err != nil {
 				c.recorder.Eventf(
-					ref, core.EventTypeWarning,
+					redis,
+					core.EventTypeWarning,
 					eventer.EventReasonFailedToUpdate,
 					err.Error(),
 				)
+				return err
 			}
-			return err
-		}
-		redis.Spec.ConfigSource = rd.Spec.ConfigSource
-	}
 
-	//data := map[string]string{
-	//	RedisFixIPScriptKey: fixIPConfig,
-	//}
-	//name := redis.Name + "-fixip"
-	//_, err := c.createConfigMap(name, data, redis)
-	//if err != nil {
-	//	return err
-	//}
+			redis.Spec.ConfigSource = rd.Spec.ConfigSource
+			c.recorder.Eventf(
+				redis,
+				core.EventTypeNormal,
+				eventer.EventReasonSuccessful,
+				"Successfully %s ConfigMap",
+				vt,
+			)
+		}
+	}
 
 	return nil
 }
 
-func (c *Controller) findConfigMap(configmapName string, redis *api.Redis) (*core.ConfigMap, error) {
-	cm, err := c.Client.CoreV1().ConfigMaps(redis.Namespace).Get(configmapName, metav1.GetOptions{})
+func (c *Controller) checkConfigMap(redis *api.Redis) error {
+	// ConfigMap for Redis configuration
+	configmap, err := c.Client.CoreV1().ConfigMaps(redis.Namespace).Get(redis.ConfigMapName(), metav1.GetOptions{})
 	if err != nil {
 		if kerr.IsNotFound(err) {
-			return nil, nil
+			return nil
 		}
-
-		return nil, err
+		return err
 	}
 
-	if cm != nil && (cm.Labels[api.LabelDatabaseKind] != api.ResourceKindRedis ||
-		cm.Labels[api.LabelDatabaseName] != redis.Name) {
-		return nil, fmt.Errorf(`intended configmap "%v" already exists`, configmapName)
+	if configmap.Labels[api.LabelDatabaseKind] != api.ResourceKindRedis ||
+		configmap.Labels[api.LabelDatabaseName] != redis.Name {
+		return fmt.Errorf(`Intended configmap "%v" already exists`, redis.ConfigMapName())
 	}
 
-	return cm, nil
+	return nil
 }
 
-func (c *Controller) createConfigMap(name string, data map[string]string, redis *api.Redis) (*core.ConfigMap, error) {
-	cm, err := c.findConfigMap(name, redis)
-	if err != nil {
-		return nil, err
+func (c *Controller) createConfigMap(redis *api.Redis) (*core.ConfigMap, kutil.VerbType, error) {
+	meta := metav1.ObjectMeta{
+		Name:      redis.ConfigMapName(),
+		Namespace: redis.Namespace,
 	}
 
 	ref, rerr := reference.GetReference(clientsetscheme.Scheme, redis)
 	if rerr != nil {
-		return nil, rerr
-	}
-	if cm == nil {
-		cmObj := &core.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: redis.Namespace,
-				Labels: map[string]string{
-					api.LabelDatabaseKind: api.ResourceKindRedis,
-					api.LabelDatabaseName: redis.Name,
-				},
-			},
-			Data: data,
-		}
-		core_util.EnsureOwnerReference(&cmObj.ObjectMeta, ref)
-		cm, err = c.Client.CoreV1().ConfigMaps(redis.Namespace).Create(cmObj)
-		if err != nil {
-			return nil, err
-		}
+		return nil, kutil.VerbUnchanged, rerr
 	}
 
-	return cm, nil
+	return core_util.CreateOrPatchConfigMap(c.Client, meta, func(in *core.ConfigMap) *core.ConfigMap {
+		core_util.EnsureOwnerReference(&in.ObjectMeta, ref)
+		in.Labels = redis.OffshootSelectors()
+		in.Annotations = redis.Spec.ServiceTemplate.Annotations
+
+		in.Data = map[string]string{
+			RedisConfigKey: redisConfig,
+		}
+
+		return in
+	})
 }

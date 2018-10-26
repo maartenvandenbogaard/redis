@@ -1,22 +1,18 @@
 package configure_cluster
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/tamalsaha/go-oneliners"
 
 	"github.com/appscode/go/log"
 	//kerr "k8s.io/apimachinery/pkg/api/errors"
 	"time"
 
-	core_util "github.com/appscode/kutil/core/v1"
 	api "github.com/kubedb/apimachinery/apis/kubedb/v1alpha1"
 	"github.com/kubedb/redis/pkg/exec"
 	"github.com/pkg/errors"
 	core "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -25,9 +21,8 @@ type Config struct {
 	RestConfig *rest.Config
 	KubeClient kubernetes.Interface
 
-	BaseName         string
-	Namespace        string
-	GoverningService string
+	BaseName  string
+	Namespace string
 
 	Cluster RedisCluster
 }
@@ -66,7 +61,7 @@ func ConfigureRedisCluster(
 		},
 	}
 
-	if err := config.waitUntillRedisServersToBeReady(pods); err != nil {
+	if err := config.waitUntilRedisServersToBeReady(pods); err != nil {
 		return err
 	}
 	if err := config.configureClusterState(pods); err != nil {
@@ -76,91 +71,40 @@ func ConfigureRedisCluster(
 	return nil
 }
 
-func (c Config) getInstances() ([][]*core.Pod, error) {
-	pods := make([][]*core.Pod, c.Cluster.MasterCnt)
-	for i := 0; i < c.Cluster.MasterCnt; i++ {
-		pods[i] = []*core.Pod{}
-
-		for j := 0; j <= c.Cluster.Replicas; j++ {
-			podName := fmt.Sprintf("%s-shard%d-%d", c.BaseName, i, j)
-
-			{
-				_, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
-				if err != nil {
-					//fmt.Printf("for %s/%s >>>>>>>>>>>>>>>\n", c.Namespace, podName)
-					oneliners.PrettyJson(err)
-				}
-			}
-
-			if err := core_util.WaitUntilPodRunning(
-				c.KubeClient,
-				metav1.ObjectMeta{
-					Name:      podName,
-					Namespace: c.Namespace,
-				},
-			); err != nil {
-				return nil, errors.Wrapf(err, "failed to get pod '%s/%s'", c.Namespace, podName)
-			}
-
-			//log.Infof("%s/%s is ready", c.Namespace, podName)
-			pod, err := c.KubeClient.CoreV1().Pods(c.Namespace).Get(podName, metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			pods[i] = append(pods[i], pod)
-		}
-	}
-
-	//for i := 0; i < c.Cluster.MasterCnt; i++ {
-	//	fmt.Println("[")
-	//	for j := 0; j <= c.Cluster.Replicas; j++ {
-	//		fmt.Printf("\t %s, %s\n", pods[i][j].Name, pods[i][j].Status.PodIP)
-	//	}
-	//	fmt.Println("]")
-	//}
-	return pods, nil
-}
-
 func (c Config) createCluster(pod *core.Pod, addrs ...string) error {
 	e := exec.NewExecWithInputOptions(c.RestConfig, c.KubeClient, "yes")
-	out, err := e.Run(pod, ClusterCreateCmd(0, addrs...)...)
+	_, err := e.Run(pod, ClusterCreateCmd(0, addrs...)...)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to create cluster using (%v)", addrs)
 	}
 
-	fmt.Println(out)
 	return nil
 }
 
 func (c Config) addNode(pod *core.Pod, newAddr, existingAddr, masterId string) error {
-	e := exec.NewExecWithDefaultOptions(c.RestConfig, c.KubeClient)
-	var (
-		out string
-		err error
-	)
+	var err error
 
+	e := exec.NewExecWithDefaultOptions(c.RestConfig, c.KubeClient)
 	if masterId == "" {
-		if out, err = e.Run(pod, AddNodeAsMasterCmd(newAddr, existingAddr)...); err != nil {
+		if _, err = e.Run(pod, AddNodeAsMasterCmd(newAddr, existingAddr)...); err != nil {
 			return errors.Wrapf(err, "Failed to add %q as a master", newAddr)
 		}
 	} else {
-		if out, err = e.Run(pod, AddNodeAsSlaveCmd(newAddr, existingAddr, masterId)...); err != nil {
+		if _, err = e.Run(pod, AddNodeAsSlaveCmd(newAddr, existingAddr, masterId)...); err != nil {
 			return errors.Wrapf(err, "Failed to add %q as a slave of master with id %q", newAddr, masterId)
 		}
 	}
 
-	fmt.Println(out)
 	return nil
 }
 
 func (c Config) deleteNode(pod *core.Pod, existingAddr, deletingNodeID string) error {
 	e := exec.NewExecWithDefaultOptions(c.RestConfig, c.KubeClient)
-	out, err := e.Run(pod, DeleteNodeCmd(existingAddr, deletingNodeID)...)
+	_, err := e.Run(pod, DeleteNodeCmd(existingAddr, deletingNodeID)...)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to delete node with ID %q", deletingNodeID)
 	}
 
-	fmt.Println(out)
 	return nil
 }
 
@@ -181,7 +125,6 @@ func (c Config) migrateKey(pod *core.Pod, srcNodeIP, dstNodeIP, dstNodePort, key
 		return errors.Wrapf(err, "Failed to migrate key %q from %q to %q", key, pod.Status.PodIP, dstNodeIP)
 	}
 
-	//fmt.Println(out)
 	return nil
 }
 
@@ -202,7 +145,6 @@ func (c Config) clusterReset(pod *core.Pod, ip, option string) error {
 		return errors.Wrapf(err, "Failed to reset node %q", ip)
 	}
 
-	//fmt.Println(out)
 	return nil
 }
 
@@ -213,7 +155,6 @@ func (c Config) clusterFailover(pod *core.Pod, ip string) error {
 		return errors.Wrapf(err, "Failed to failover node %q", ip)
 	}
 
-	//fmt.Println(out)
 	return nil
 }
 
@@ -225,7 +166,6 @@ func (c Config) clusterSetSlotImporting(pod *core.Pod, dstNodeIP, slot, srcNodeI
 			slot, dstNodeIP, srcNodeID)
 	}
 
-	//fmt.Println(out)
 	return nil
 }
 
@@ -237,7 +177,6 @@ func (c Config) clusterSetSlotMigrating(pod *core.Pod, srcNodeIP, slot, dstNodeI
 			slot, srcNodeIP, dstNodeID)
 	}
 
-	//fmt.Println(out)
 	return nil
 }
 
@@ -249,7 +188,6 @@ func (c Config) clusterSetSlotNode(pod *core.Pod, toNodeIP, slot, dstNodeID stri
 			slot, toNodeIP, dstNodeID)
 	}
 
-	//fmt.Println(out)
 	return nil
 }
 
@@ -275,47 +213,32 @@ func (c Config) clusterReplicate(pod *core.Pod, receivingNodeIP, masterNodeID st
 	return nil
 }
 
-func (c Config) reshard(
-	pod *core.Pod, nodes [][]RedisNode, src, dst, requstedSlotsCount int) error {
-	//cmd := NewCmdWithDefaultOptions()
-	//out, err := cmd.Run("redis-trib",
-	//	[]string{"reshard", "--from", from, "--to", to, "--slots", slots, "--yes"}...)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//
-	//fmt.Println(out)
-	//
-	log.Infof("resharding %d slots from %q to %q...\n\n\n",
-		requstedSlotsCount, nodes[src][0].IP, nodes[dst][0].IP)
+func (c Config) reshard(pod *core.Pod, nodes [][]RedisNode, src, dst, requstedSlotsCount int) error {
+	log.Infof("Resharding %d slots from %q to %q...", requstedSlotsCount, nodes[src][0].IP, nodes[dst][0].IP)
 
 	var (
 		movedSlotsCount int
 		err             error
 	)
+
 	movedSlotsCount = 0
 	need := requstedSlotsCount
-Reshard:
+
+	//Reshard:
 	for i := range nodes[src][0].SlotStart {
 		if movedSlotsCount >= requstedSlotsCount {
-			break Reshard
+			//break Reshard
+			break
 		}
 
 		start := nodes[src][0].SlotStart[i]
 		end := nodes[src][0].SlotEnd[i]
-		// ==================
-		en := end
-		if en-start+1 > need {
-			en = start + need - 1
+		if end-start+1 > need {
+			end = start + need - 1
 		}
 		cmd := []string{"/conf/cluster.sh", "reshard", nodes[src][0].IP, nodes[src][0].ID, nodes[dst][0].IP, nodes[dst][0].ID,
-			strconv.Itoa(start), strconv.Itoa(en),
+			strconv.Itoa(start), strconv.Itoa(end),
 		}
-		//for k := range nodes {
-		//	if k != src && k != dst {
-		//		cmd = append(cmd, nodes[k][0].IP)
-		//	}
-		//}
 
 		e := exec.NewExecWithDefaultOptions(c.RestConfig, c.KubeClient)
 		_, err = e.Run(pod, cmd...)
@@ -323,49 +246,9 @@ Reshard:
 			return errors.Wrapf(err, "Failed to reshard %d slots from %q to %q",
 				requstedSlotsCount, nodes[src][0].IP, nodes[dst][0].IP)
 		}
-		return nil
-		// ==================
-		//for slot := start; slot <= end; slot++ {
-		//	if movedSlotsCount >= requstedSlotsCount {
-		//		break Reshard
-		//	}
-		//
-		//	if err = c.clusterSetSlotImporting(pod, nds[dstNodeID].IP, strconv.Itoa(slot), srcNodeID); err != nil {
-		//		return err
-		//	}
-		//	if err = c.clusterSetSlotMigrating(pod, nds[srcNodeID].IP, strconv.Itoa(slot), dstNodeID); err != nil {
-		//		return err
-		//	}
-		//	for {
-		//		key, err := c.clusterGetKeysInSlot(pod, nds[srcNodeID].IP, strconv.Itoa(slot))
-		//		if err != nil {
-		//			return err
-		//		}
-		//		if key == "" {
-		//			break
-		//		}
-		//		if err = c.migrateKey(
-		//			pod, nds[srcNodeID].IP, nds[dstNodeID].IP, strconv.Itoa(nds[dstNodeID].Port), key,
-		//			"0", "5000"); err != nil {
-		//			return err
-		//		}
-		//	}
-		//	if err = c.clusterSetSlotNode(pod, nds[srcNodeID].IP, strconv.Itoa(slot), dstNodeID); err != nil {
-		//		return err
-		//	}
-		//	if err = c.clusterSetSlotNode(pod, nds[dstNodeID].IP, strconv.Itoa(slot), dstNodeID); err != nil {
-		//		return err
-		//	}
-		//
-		//	for masterId, master := range nds {
-		//		if masterId != srcNodeID && masterId != dstNodeID {
-		//			if err = c.clusterSetSlotNode(pod, master.IP, strconv.Itoa(slot), dstNodeID); err != nil {
-		//				return err
-		//			}
-		//		}
-		//	}
-		//	movedSlotsCount++
-		//}
+
+		movedSlotsCount += (end - start + 1)
+		need -= (end - start + 1)
 	}
 
 	return nil
@@ -421,23 +304,23 @@ func getMasterID(nodeConf string) (masterID string) {
 	return masterID
 }
 
-func (c Config) waitUntillRedisServersToBeReady(pods [][]*core.Pod) error {
-	//pods, err := c.getInstances()
-	//if err != nil {
-	//	return err
-	//}
+func (c Config) waitUntilRedisServersToBeReady(pods [][]*core.Pod) error {
+	var err error
 
 	for i := 0; i < c.Cluster.MasterCnt; i++ {
 		for j := 0; j <= c.Cluster.Replicas; j++ {
-			//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, i, j, c.GoverningService, c.Namespace))
-			for {
+			if err = wait.PollImmediate(time.Second, time.Minute*5, func() (bool, error) {
 				if pong, _ := c.ping(pods[i][j], pods[i][j].Status.PodIP); pong == "PONG" {
-					log.Infof("%s is ready", pods[i][j].Status.PodIP)
-					break
+					return true, nil
 				}
+
+				return false, nil
+			}); err != nil {
+				return errors.Wrapf(err, "%q is not ready yet", pods[i][j].Status.PodIP)
 			}
 		}
 	}
+	log.Infoln("All redis servers are ready")
 
 	return nil
 }
@@ -519,51 +402,22 @@ func processNodesConf(nodesConf string) map[string]*RedisNode {
 		}
 	}
 
-	//for masterId, master := range nds {
-	//	fmt.Println(">>>>>>>> masterId =", masterId)
-	//	fmt.Println("=============================================================")
-	//	fmt.Println("{")
-	//	fmt.Println("\t ID:", masterId)
-	//	fmt.Println("\t IP:", master.IP)
-	//	fmt.Println("\t Role:", master.Role)
-	//	fmt.Println("\t Down:", master.Down)
-	//	fmt.Println("\t Slot Count:", master.SlotsCnt)
-	//	fmt.Println("\t Slot Start:", master.SlotStart)
-	//	fmt.Println("\t Slot End:", master.SlotEnd)
-	//	for _, slave := range master.Slaves {
-	//		fmt.Println("\t{")
-	//		fmt.Println("\t\t ID:", slave.ID)
-	//		fmt.Println("\t\t IP:", slave.IP)
-	//		fmt.Println("\t\t Role:", slave.Role)
-	//		fmt.Println("\t\t Down:", slave.Down)
-	//		fmt.Println("\t\t MasterId =", slave.Master.ID)
-	//		fmt.Println("\t}")
-	//	}
-	//	fmt.Println("}")
-	//}
-
 	return nds
 }
 
 func (c Config) ensureFirstPodAsMaster(pods [][]*core.Pod) error {
-	log.Infoln("\n\nensuring 1st pod as master in each statefulSet...")
+	log.Infoln("Ensuring 1st pod as master in each statefulSet...")
 
 	var (
-		//pods      [][]*core.Pod
 		err       error
 		nodesConf string
 	)
 
-	//if pods, err = c.getInstances(); err != nil {
-	//	return err
-	//}
-	//ip := getIPByHostName(fmt.Sprintf("%s-shard%d-%d.%s.%s.svc.cluster.local", c.BaseName, 0, 0, c.GoverningService, c.Namespace))
 	if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
 		return err
 	}
 
 	if strings.Count(nodesConf, "master") > 1 {
-		wait := false
 		for i := 0; i < c.Cluster.MasterCnt; i++ {
 			if nodesConf, err = c.getClusterNodes(pods[i][0], pods[i][0].Status.PodIP); err != nil {
 				return err
@@ -572,12 +426,8 @@ func (c Config) ensureFirstPodAsMaster(pods [][]*core.Pod) error {
 				if err = c.clusterFailover(pods[i][0], pods[i][0].Status.PodIP); err != nil {
 					return err
 				}
-				wait = true
+				time.Sleep(time.Second * 5)
 			}
-		}
-		if wait {
-			log.Infoln("Waiting to update cluster for ensuring 1st pod as master...")
-			time.Sleep(time.Minute)
 		}
 	}
 
@@ -586,7 +436,6 @@ func (c Config) ensureFirstPodAsMaster(pods [][]*core.Pod) error {
 
 func (c Config) getOrderedNodes(pods [][]*core.Pod) ([][]RedisNode, error) {
 	var (
-		//pods         [][]*core.Pod
 		err          error
 		nodesConf    string
 		nodes        map[string]*RedisNode
@@ -597,9 +446,6 @@ func (c Config) getOrderedNodes(pods [][]*core.Pod) ([][]RedisNode, error) {
 		return nil, err
 	}
 
-	//if pods, err = c.getInstances(); err != nil {
-	//	return nil, nil, err
-	//}
 Again:
 	for {
 		if nodesConf, err = c.getClusterNodes(pods[0][0], pods[0][0].Status.PodIP); err != nil {
@@ -607,23 +453,18 @@ Again:
 		}
 		nodes = processNodesConf(nodesConf)
 		for _, master := range nodes {
-			//log.Infoln("master = ", master.IP)
 			for i := 0; i < len(pods); i++ {
 				if pods[i][0].Status.PodIP == master.IP {
-					//log.Infoln("found master = ", master.IP, " at ", i)
 					for _, slave := range master.Slaves {
-						//log.Infoln("\tslave = ", slave.IP)
 						for k := 0; k < len(pods); k++ {
 							for j := 1; j < len(pods[k]); j++ {
 								if pods[k][j].Status.PodIP == slave.IP && i != k {
-									//log.Infoln("\tfound slave = ", slave.IP, " at ", k, " ", j)
 									if err = c.clusterReplicate(
 										pods[k][j], pods[k][j].Status.PodIP,
 										getNodeId(getNodeConfByIP(nodesConf, pods[k][0].Status.PodIP))); err != nil {
 										return nil, err
 									}
 									time.Sleep(time.Second * 5)
-									//log.Infoln("Again")
 									goto Again
 								}
 							}
@@ -636,48 +477,13 @@ Again:
 		break
 	}
 
-	//log.Infoln("pods len = ", len(pods))
-	//for i := range pods {
-	//	log.Infoln("pods[", i, "] len = ", len(pods[i]))
-	//}
-	//log.Infoln("nodes len = ", len(nodes))
-
-	//for i, master := range nodes {
-	//	fmt.Println(">>>>>>>> index =", i)
-	//	fmt.Println("=============================================================")
-	//	fmt.Println("{")
-	//	fmt.Println("\t ID:", master.ID)
-	//	fmt.Println("\t IP:", master.IP)
-	//	fmt.Println("\t Role:", master.Role)
-	//	fmt.Println("\t Down:", master.Down)
-	//	fmt.Println("\t Slot Count:", master.SlotsCnt)
-	//	fmt.Println("\t Slot Start:", master.SlotStart)
-	//	fmt.Println("\t Slot End:", master.SlotEnd)
-	//	for _, slave := range master.Slaves {
-	//		fmt.Println("\t{")
-	//		fmt.Println("\t\t ID:", slave.ID)
-	//		fmt.Println("\t\t IP:", slave.IP)
-	//		fmt.Println("\t\t Role:", slave.Role)
-	//		fmt.Println("\t\t Down:", slave.Down)
-	//		fmt.Println("\t\t MasterId =", slave.Master.ID)
-	//		fmt.Println("\t}")
-	//	}
-	//	fmt.Println("}")
-	//}
 	orderedNodes = make([][]RedisNode, len(nodes))
 	for i := 0; i < len(nodes); i++ {
 		for _, master := range nodes {
 			if master.IP == pods[i][0].Status.PodIP {
 				orderedNodes[i] = make([]RedisNode, len(master.Slaves)+1)
 				orderedNodes[i][0] = *master
-				//orderedNodes[i].Slaves = make([]*RedisNode, len(pods[i]))
-
-				//log.Infof("pods[%d].len = %d", i, len(pods[i]))
-				//log.Infof("orderedNodes[%d].len = %d", i, len(orderedNodes[i]))
-				//log.Infof("orderedNodes[%d][0].ip = %s", i, orderedNodes[i][0].IP)
-
 				for j := 1; j < len(orderedNodes[i]); j++ {
-					//log.Infoln("j is ", j)
 					for _, slave := range master.Slaves {
 						if slave.IP == pods[i][j].Status.PodIP {
 							orderedNodes[i][j] = *slave
@@ -692,47 +498,45 @@ Again:
 		}
 	}
 
-	if len(orderedNodes) > 1 {
-		for i := range orderedNodes {
-			if len(orderedNodes[i]) == 0 {
-				continue
-			}
-
-			fmt.Println(">>>>>>>> index =", i)
-			fmt.Println("=============================================================")
-			fmt.Println("{")
-			fmt.Println("\t ID:", orderedNodes[i][0].ID)
-			fmt.Println("\t IP:", orderedNodes[i][0].IP)
-			fmt.Println("\t Role:", orderedNodes[i][0].Role)
-			fmt.Println("\t Down:", orderedNodes[i][0].Down)
-			fmt.Println("\t Slot Count:", orderedNodes[i][0].SlotsCnt)
-			fmt.Println("\t Slot Start:", orderedNodes[i][0].SlotStart)
-			fmt.Println("\t Slot End:", orderedNodes[i][0].SlotEnd)
-			for j := 1; j < len(orderedNodes[i]); j++ {
-				fmt.Println("\t{")
-				fmt.Println("\t\t ID:", orderedNodes[i][j].ID)
-				fmt.Println("\t\t IP:", orderedNodes[i][j].IP)
-				fmt.Println("\t\t Role:", orderedNodes[i][j].Role)
-				fmt.Println("\t\t Down:", orderedNodes[i][j].Down)
-				fmt.Println("\t\t MasterId =", orderedNodes[i][j].Master.ID)
-				fmt.Println("\t}")
-			}
-			fmt.Println("}")
-		}
-	}
+	//if len(orderedNodes) > 1 {
+	//	for i := range orderedNodes {
+	//		if len(orderedNodes[i]) == 0 {
+	//			continue
+	//		}
+	//
+	//		fmt.Println(">>>>>>>> index =", i)
+	//		fmt.Println("=============================================================")
+	//		fmt.Println("{")
+	//		fmt.Println("\t ID:", orderedNodes[i][0].ID)
+	//		fmt.Println("\t IP:", orderedNodes[i][0].IP)
+	//		fmt.Println("\t Role:", orderedNodes[i][0].Role)
+	//		fmt.Println("\t Down:", orderedNodes[i][0].Down)
+	//		fmt.Println("\t Slot Count:", orderedNodes[i][0].SlotsCnt)
+	//		fmt.Println("\t Slot Start:", orderedNodes[i][0].SlotStart)
+	//		fmt.Println("\t Slot End:", orderedNodes[i][0].SlotEnd)
+	//		for j := 1; j < len(orderedNodes[i]); j++ {
+	//			fmt.Println("\t{")
+	//			fmt.Println("\t\t ID:", orderedNodes[i][j].ID)
+	//			fmt.Println("\t\t IP:", orderedNodes[i][j].IP)
+	//			fmt.Println("\t\t Role:", orderedNodes[i][j].Role)
+	//			fmt.Println("\t\t Down:", orderedNodes[i][j].Down)
+	//			fmt.Println("\t\t MasterId =", orderedNodes[i][j].Master.ID)
+	//			fmt.Println("\t}")
+	//		}
+	//		fmt.Println("}")
+	//	}
+	//}
 
 	return orderedNodes, nil
 }
 
 func (c Config) ensureExtraSlavesBeRemoved(pods [][]*core.Pod) error {
-	log.Infoln("\n\nensuring extra slaves be removed...")
+	log.Infoln("Ensuring extra slaves be removed...")
 
 	var (
 		err   error
 		nodes [][]RedisNode
 	)
-
-	// =========================
 
 	nodes, err = c.getOrderedNodes(pods)
 	for i := range nodes {
@@ -750,13 +554,11 @@ func (c Config) ensureExtraSlavesBeRemoved(pods [][]*core.Pod) error {
 		}
 	}
 
-	// =========================
-
 	return nil
 }
 
 func (c Config) ensureExtraMastersBeRemoved(pods [][]*core.Pod) error {
-	log.Infoln("\n\nensuring extra masters be removed...")
+	log.Infoln("Ensuring extra masters be removed...")
 
 	var (
 		err                           error
@@ -764,7 +566,7 @@ func (c Config) ensureExtraMastersBeRemoved(pods [][]*core.Pod) error {
 		nodes                         [][]RedisNode
 		slotsPerMaster, slotsRequired int
 	)
-	// =========================
+
 	nodes, err = c.getOrderedNodes(pods)
 	existingMasterCnt = len(nodes)
 	log.Infoln("existing master count = ", existingMasterCnt)
@@ -829,21 +631,17 @@ func (c Config) ensureExtraMastersBeRemoved(pods [][]*core.Pod) error {
 		}
 	}
 
-	// =========================
-
 	return nil
 }
 
 func (c Config) ensureNewMastersBeAdded(pods [][]*core.Pod) error {
-	log.Infoln("\n\nensuring new masters be added...")
+	log.Infoln("Ensuring new masters be added...")
 
 	var (
 		err               error
 		existingMasterCnt int
 		nodes             [][]RedisNode
 	)
-
-	// =========================
 
 	nodes, err = c.getOrderedNodes(pods)
 	existingMasterCnt = len(nodes)
@@ -868,13 +666,11 @@ func (c Config) ensureNewMastersBeAdded(pods [][]*core.Pod) error {
 		}
 	}
 
-	// =========================
-
 	return nil
 }
 
 func (c Config) rebalanceSlots(pods [][]*core.Pod) error {
-	log.Infoln("\n\nensuring slots are rebalanced...")
+	log.Infoln("Ensuring slots are rebalanced...")
 
 	var (
 		err                                                     error
@@ -883,8 +679,6 @@ func (c Config) rebalanceSlots(pods [][]*core.Pod) error {
 		masterIndicesWithLessSlots, masterIndicesWithExtraSlots []int
 		slotsPerMaster, slotsRequired                           int
 	)
-
-	// =========================
 
 	nodes, err = c.getOrderedNodes(pods)
 
@@ -939,21 +733,17 @@ func (c Config) rebalanceSlots(pods [][]*core.Pod) error {
 		}
 	}
 
-	// =========================
-
 	return nil
 }
 
 func (c Config) ensureNewSlavesBeAdded(pods [][]*core.Pod) error {
-	log.Infoln("\n\nensuring new slaves be added...")
+	log.Infoln("Ensuring new slaves be added...")
 
 	var (
 		err               error
 		existingMasterCnt int
 		nodes             [][]RedisNode
 	)
-
-	// =========================
 
 	nodes, err = c.getOrderedNodes(pods)
 
@@ -981,15 +771,11 @@ func (c Config) ensureNewSlavesBeAdded(pods [][]*core.Pod) error {
 		}
 	}
 
-	// =========================
-
 	return nil
 }
 
 func (c Config) configureClusterState(pods [][]*core.Pod) error {
-	var (
-		err error
-	)
+	var err error
 
 	if err = c.ensureCluster(pods); err != nil {
 		return err
@@ -1018,7 +804,7 @@ func (c Config) configureClusterState(pods [][]*core.Pod) error {
 }
 
 func (c Config) ensureCluster(pods [][]*core.Pod) error {
-	log.Infoln("\n\nensuring new cluster...")
+	log.Infoln("Ensuring new cluster...")
 
 	var (
 		masterAddrs   []string
@@ -1029,8 +815,6 @@ func (c Config) ensureCluster(pods [][]*core.Pod) error {
 	)
 	masterAddrs = make([]string, c.Cluster.MasterCnt)
 	masterNodeIds = make([]string, c.Cluster.MasterCnt)
-
-	// ======================
 
 	nodes, err = c.getOrderedNodes(pods)
 	if err != nil {
@@ -1061,8 +845,6 @@ func (c Config) ensureCluster(pods [][]*core.Pod) error {
 		}
 	}
 	time.Sleep(time.Second * 15)
-
-	// ==================================
 
 	return nil
 }

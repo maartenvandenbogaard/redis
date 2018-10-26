@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ex
 
 # needs args in following manner:
 #    src_node_ip
@@ -7,13 +8,7 @@
 #    dst_node_id
 #    slot_start
 #    slot_end
-#    other_master1_ip
-#    ...
-#    other_masterN_ip
 reshard() {
-    argv=( $@ )
-    argc=$#
-
     for i in `seq $5 $6`; do
         redis-cli -c -h $3 cluster setslot ${i} importing $2
         redis-cli -c -h $1 cluster setslot ${i} migrating $4
@@ -27,9 +22,6 @@ reshard() {
         done
         redis-cli -c -h $1 cluster setslot ${i} node $4
         redis-cli -c -h $3 cluster setslot ${i} node $4
-        for j in `seq 6 $(($argc-1))`; do
-            redis-cli -c -h ${argv[${j}]} cluster setslot ${i} node $4
-        done
     done
 }
 

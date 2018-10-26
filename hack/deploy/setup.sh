@@ -8,8 +8,6 @@ export MINIKUBE=0
 export MINIKUBE_RUN=0
 export SELF_HOSTED=1
 export ARGS="" # Forward arguments to installer script
-export UNINSTALL=0
-export PURGE=0
 
 REPO_ROOT="$GOPATH/src/github.com/kubedb/redis"
 CLI_ROOT="$GOPATH/src/github.com/kubedb/cli"
@@ -62,8 +60,6 @@ show_help() {
   echo "    --selfhosted    deploy operator cluster."
   echo "    --minikube      setup configurations for minikube to run operator in localhost"
   echo "    --run           run operator in localhost and connect with minikube. only works with --minikube flag"
-  echo "    --uninstall     uninstall the operator"
-  echo "    --purge         purges redis and redisversion crd objects and crds"
 }
 
 while test $# -gt 0; do
@@ -91,16 +87,6 @@ while test $# -gt 0; do
     --selfhosted)
       export MINIKUBE=0
       export SELF_HOSTED=1
-      shift
-      ;;
-    --uninstall)
-      ARGS="$ARGS $1"
-      export UNINSTALL=1
-      shift
-      ;;
-    --purge)
-      ARGS="$ARGS $1"
-      export PURGE=1
       shift
       ;;
     *)
@@ -143,45 +129,11 @@ if [ "$SELF_HOSTED" -eq 1 ]; then
 fi
 
 if [ "$MINIKUBE" -eq 1 ]; then
-  if [ "$UNINSTALL" -eq 1 ]; then
-    cat ${CLI_ROOT}/hack/deploy/validating-webhook.yaml | $ONESSL envsubst | kubectl delete -f -
-    cat ${CLI_ROOT}/hack/deploy/mutating-webhook.yaml | $ONESSL envsubst | kubectl delete -f -
-    cat $REPO_ROOT/hack/dev/apiregistration.yaml | $ONESSL envsubst | kubectl delete -f -
-
-    if [ "$PURGE" -eq 1 ]; then
-      pairs=($(kubectl get redises.kubedb.com --all-namespaces -o jsonpath='{range .items[*]}{.metadata.name} {.metadata.namespace} {end}' || true))
-      total=${#pairs[*]}
-
-      # save objects
-      if [ $total -gt 0 ]; then
-        echo "dumping redises objects into redis.yaml"
-        kubectl get redises.kubedb.com --all-namespaces -o yaml >redis.yaml
-      fi
-
-      for ((i = 0; i < $total; i+=2)); do
-        name=${pairs[$i]}
-        namespace=${pairs[$i + 1]}
-
-        # remove finalizers
-        kubectl patch redises.kubedb.com $name -n $namespace -p '{"metadata":{"finalizers":[]}}' --type=merge
-        # delete crd object
-        echo "deleting redises $namespace/$name"
-        kubectl delete redises.kubedb.com $name -n $namespace --ignore-not-found=true
-      done
-
-      # delete crd
-      kubectl delete crd redises.kubedb.com --ignore-not-found=true
-      kubectl delete crd redisversions.kubedb.com --ignore-not-found=true
-    fi
-
-    exit
-  fi
-  cat ${CLI_ROOT}/hack/deploy/validating-webhook.yaml | $ONESSL envsubst | kubectl apply -f -
-  cat ${CLI_ROOT}/hack/deploy/mutating-webhook.yaml | $ONESSL envsubst | kubectl apply -f -
+  cat $CLI_ROOT/hack/deploy/validating-webhook.yaml | $ONESSL envsubst | kubectl apply -f -
+  cat $CLI_ROOT/hack/deploy/mutating-webhook.yaml | $ONESSL envsubst | kubectl apply -f -
   cat $REPO_ROOT/hack/dev/apiregistration.yaml | $ONESSL envsubst | kubectl apply -f -
   # Following line may give error if DBVersions CRD already not created
 #  cat ${CLI_ROOT}/hack/deploy/kubedb-catalog/redis.yaml | $ONESSL envsubst | kubectl apply -f - || true
-  echo ""
 
   if [ "$MINIKUBE_RUN" -eq 1 ]; then
     $REPO_ROOT/hack/make.py

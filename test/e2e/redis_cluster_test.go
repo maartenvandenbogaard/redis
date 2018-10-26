@@ -61,32 +61,7 @@ var deleteTestResource = func() {
 type clusterScenario struct {
 	nodes   [][]framework.RedisNode
 	clients [][]*rd.Client
-
-	//ports   []string
-	//ips     []string
-	//nodeIds []string
-	////clients map[string]*rd.Client
-	//role    map[string]string
-	//
-	//slotStart map[string]int
-	//slotEnd   map[string]int
 }
-
-//func (s *clusterScenario) masters() []*rd.Client {
-//	result := make([]*rd.Client, 3)
-//	for pos, port := range s.ports[:3] {
-//		result[pos] = s.clients[port]
-//	}
-//	return result
-//}
-
-//func (s *clusterScenario) slaves() []*rd.Client {
-//	result := make([]*rd.Client, 3)
-//	for pos, port := range s.ports[3:] {
-//		result[pos] = s.clients[port]
-//	}
-//	return result
-//}
 
 func (s *clusterScenario) addrs() []string {
 	addrs := []string{}
@@ -99,15 +74,7 @@ func (s *clusterScenario) addrs() []string {
 		}
 	}
 
-	oneliners.PrettyJson(addrs, "redis address")
 	return addrs
-
-	//addrs := make([]string, len(s.ports))
-	//for i, port := range s.ports {
-	//	addrs[i] = net.JoinHostPort("127.0.0.1", port)
-	//}
-	//
-	//return addrs
 }
 
 func (s *clusterScenario) clusterNodes(slotStart, slotEnd int) []rd.ClusterNode {
@@ -128,14 +95,6 @@ func (s *clusterScenario) clusterNodes(slotStart, slotEnd int) []rd.ClusterNode 
 	}
 
 	return nil
-
-	//for i, port := range s.ports {
-	//	if s.slotStart[port] == slotStart && s.slotEnd[port] == slotEnd && s.role[port] == role {
-	//		return s.ips[i] + ":6379"
-	//	}
-	//}
-	//
-	//return ""
 }
 
 func (s *clusterScenario) clusterClient(opt *rd.ClusterOptions) *rd.ClusterClient {
@@ -222,19 +181,16 @@ func slotEqual(s1, s2 rd.ClusterSlot) bool {
 
 var _ = Describe("Redis Cluster", func() {
 	var (
-		err         error
-		skipMessage string
-		//redisInstanceNumber int
-		//selector            labels.Set
-		failover  bool
-		opt       *rd.ClusterOptions
-		client    *rd.ClusterClient
-		cluster   *clusterScenario
-		ports     [][]string
-		tunnels   [][]*portforward.Tunnel
-		nodes     [][]framework.RedisNode
-		rdClients [][]*rd.Client
-		//modRedis  *api.Redis
+		err                  error
+		skipMessage          string
+		failover             bool
+		opt                  *rd.ClusterOptions
+		client               *rd.ClusterClient
+		cluster              *clusterScenario
+		ports                [][]string
+		tunnels              [][]*portforward.Tunnel
+		nodes                [][]framework.RedisNode
+		rdClients            [][]*rd.Client
 		expectedClusterSlots []rd.ClusterSlot
 	)
 
@@ -257,38 +213,7 @@ var _ = Describe("Redis Cluster", func() {
 				slots = append(slots, slot)
 			}
 		}
-		//slots := []rd.ClusterSlot{
-		//	// First node with 1 master and 1 slave.
-		//	{
-		//		Start: 0,
-		//		End:   5460,
-		//		Nodes: []rd.ClusterNode{{
-		//			Addr: ":" + addrs[0], // master
-		//		}, {
-		//			Addr: ":" + addrs[3], // 1st slave
-		//		}},
-		//	},
-		//	// Second node with 1 master and 1 slave.
-		//	{
-		//		Start: 5461,
-		//		End:   10922,
-		//		Nodes: []rd.ClusterNode{{
-		//			Addr: ":" + addrs[1], // master
-		//		}, {
-		//			Addr: ":" + addrs[4], // 1st slave
-		//		}},
-		//	},
-		//	// Third node with 1 master and 1 slave.
-		//	{
-		//		Start: 10923,
-		//		End:   16383,
-		//		Nodes: []rd.ClusterNode{{
-		//			Addr: ":" + addrs[2], // master
-		//		}, {
-		//			Addr: ":" + addrs[5], // 1st slave
-		//		}},
-		//	},
-		//}
+
 		return slots, nil
 	}
 
@@ -308,20 +233,19 @@ var _ = Describe("Redis Cluster", func() {
 			nodes:   nodes,
 			clients: rdClients,
 		}
-		oneliners.PrettyJson(cluster.nodes, "cluster")
 	}
 
 	var closeExistingTunnels = func() {
+		By("closing tunnels")
 		for i := range tunnels {
 			for j := range tunnels[i] {
-				By(fmt.Sprintf("closing tunnels[%d][%d]", i, j))
 				tunnels[i][j].Close()
 			}
 		}
 	}
 
 	var createAndInitializeClusterClient = func() {
-		By("Creating cluster client")
+		By(fmt.Sprintf("Creating cluster client using ports %v", ports))
 		opt = &rd.ClusterOptions{
 			ClusterSlots:  clusterSlots,
 			RouteRandomly: true,
@@ -341,56 +265,6 @@ var _ = Describe("Redis Cluster", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 	}
-
-	//JustBeforeEach(func() {
-	//	//redisInstanceNumber = int(redis.Spec.Cluster.Master * (redis.Spec.Cluster.ReplicationFactor + 1))
-	//	//selector = labels.Set{
-	//	//	api.LabelDatabaseKind: api.ResourceKindRedis,
-	//	//	api.LabelDatabaseName: redis.Name,
-	//	//}
-	//	skipMessage = ""
-	//
-	//	ports, tunnels, err = cl.f.GetPodsIPWithTunnel(cl.redis)
-	//	Expect(err).NotTo(HaveOccurred())
-	//
-	//	By("Wait until redis cluster be configured")
-	//	Expect(cl.f.WaitUntilRedisClusterConfigured(cl.redis, ports[0][0])).NotTo(HaveOccurred())
-	//
-	//	By("Get configured cluster info")
-	//	nodes, rdClients = cl.f.Sync(ports, cl.redis)
-	//
-	//	By(fmt.Sprintf("Creating client with ports %v", ports))
-	//	cluster = &clusterScenario{
-	//		nodes:   nodes,
-	//		clients: rdClients,
-	//		//ports:     []string{nodes[0].Port, nodes[1].Port, nodes[2].Port, nodes[3].Port, nodes[4].Port, nodes[5].Port},
-	//		//nodeIds:   make([]string, 6),
-	//		//ips:       make([]string, 6),
-	//		//clients:   make(map[string]*rd.Client, 6),
-	//		//role:      make(map[string]string, 6),
-	//		//slotStart: make(map[string]int, 6),
-	//		//slotEnd:   make(map[string]int, 6),
-	//	}
-	//	oneliners.PrettyJson(cluster.nodes, "cluster")
-	//
-	//	//for i, port := range cluster.ports {
-	//	//	cluster.ips[i] = nodes[i].Ip
-	//	//	cluster.nodeIds[i] = nodes[i].Id
-	//	//	cluster.clients[port] = nodes[i].Client
-	//	//	cluster.role[port] = nodes[i].Role
-	//	//	cluster.slotStart[port] = nodes[i].SlotStart
-	//	//	cluster.slotEnd[port] = nodes[i].SlotEnd
-	//	//}
-	//})
-
-	//AfterEach(func() {
-	//	for i := range tunnels {
-	//		for j := range tunnels[i] {
-	//			defer tunnels[i][j].Close()
-	//			By(fmt.Sprintf("closing tunnels[%d][%d]", i, j))
-	//		}
-	//	}
-	//})
 
 	var assertSimple = func() {
 		It("should GET/SET/DEL", func() {
@@ -447,17 +321,11 @@ var _ = Describe("Redis Cluster", func() {
 				RouteRandomly: true,
 			}
 			client = cluster.clusterClient(opt)
-			err = client.ReloadState()
-			if err != nil {
-				By("err in reload state")
-				oneliners.PrettyJson(err, "err for reloadstate")
-			}
-			//oneliners.PrettyJson(opt.Addrs, "clusterOptions.Addrs")
-
-			//err := client.ForEachMaster(func(master *rd.Client) error {
-			//	return master.FlushDB().Err()
-			//})
-			//Expect(err).NotTo(HaveOccurred())
+			Expect(client.ReloadState()).ShouldNot(HaveOccurred())
+			//if err != nil {
+			//	By("err in reload state")
+			//	oneliners.PrettyJson(err, "err for reloadstate")
+			//}
 		})
 
 		AfterEach(func() {
@@ -469,7 +337,6 @@ var _ = Describe("Redis Cluster", func() {
 
 		It("should CLUSTER INFO", func() {
 			res, err := client.ClusterInfo().Result()
-			fmt.Println(">>>>>>", res)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).To(ContainSubstring(fmt.Sprintf("cluster_known_nodes:%d",
 				(*cl.redis.Spec.Cluster.Master)*((*cl.redis.Spec.Cluster.Replicas)+1))))
@@ -500,35 +367,14 @@ var _ = Describe("Redis Cluster", func() {
 					Start: 0,
 					End:   5460,
 					Nodes: cluster.clusterNodes(0, 5460),
-					//[]rd.ClusterNode{{
-					//	Id:   "",
-					//	Addr: cluster.nodeAddr("0", "5460", "master"),
-					//}, {
-					//	Id:   "",
-					//	Addr: cluster.nodeAddr(0, 5460, "slave"),
-					//}},
 				}, {
 					Start: 5461,
 					End:   10922,
 					Nodes: cluster.clusterNodes(5461, 10922),
-					//[]rd.ClusterNode{{
-					//	Id:   "",
-					//	Addr: cluster.nodeAddr("5461", "10922", "master"),
-					//}, {
-					//	Id:   "",
-					//	Addr: cluster.nodeAddr(5461, 10922, "slave"),
-					//}},
 				}, {
 					Start: 10923,
 					End:   16383,
 					Nodes: cluster.clusterNodes(10923, 16383),
-					//[]rd.ClusterNode{{
-					//	Id:   "",
-					//	Addr: cluster.nodeAddr("10923", "16383", "master"),
-					//}, {
-					//	Id:   "",
-					//	Addr: cluster.nodeAddr(10923, 16383, "slave"),
-					//}},
 				},
 			}
 
@@ -571,16 +417,6 @@ var _ = Describe("Redis Cluster", func() {
 					break
 				}
 			}
-			//for i, node := range nodes {
-			//	if node.Role == "master" {
-			//		nodesList, err := client.ClusterSlaves(cluster.nodeIds[i]).Result()
-			//		Expect(err).NotTo(HaveOccurred())
-			//		Expect(nodesList).Should(ContainElement(ContainSubstring("slave")))
-			//		Expect(nodesList).Should(HaveLen(1))
-			//		break
-			//	}
-			//}
-
 		})
 
 		It("should RANDOMKEY", func() {

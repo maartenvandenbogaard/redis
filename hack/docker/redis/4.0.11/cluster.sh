@@ -8,9 +8,6 @@ set -ex
 #    dst_node_id
 #    slot_start
 #    slot_end
-#    other_master1_ip
-#    ...
-#    other_masterN_ip
 reshard() {
     for i in `seq $5 $6`; do
         redis-cli -c -h $3 cluster setslot ${i} importing $2
