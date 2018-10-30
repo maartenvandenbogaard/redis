@@ -122,12 +122,22 @@ var cases = []struct {
 		false,
 		true,
 	},
-	{"Create Invalid Redis",
+	{"Create Invalid Redis (invalid version)",
 		requestKind,
 		"foo",
 		"default",
 		admission.Create,
 		getAwkwardRedis(),
+		api.Redis{},
+		false,
+		false,
+	},
+	{"Create Invalid Redis (invalid replicas)",
+		requestKind,
+		"foo",
+		"default",
+		admission.Create,
+		getAwkwardRedisWithInvalidReplicas(),
 		api.Redis{},
 		false,
 		false,
@@ -212,9 +222,51 @@ var cases = []struct {
 		false,
 		true,
 	},
+
+	// For Redis Cluster
+	{"Create Valid Cluster",
+		requestKind,
+		"foo",
+		"default",
+		admission.Create,
+		sampleCluster(),
+		api.Redis{},
+		false,
+		true,
+	},
+	{"Create Invalid Cluster (invalid Spec.Cluster.Master)",
+		requestKind,
+		"foo",
+		"default",
+		admission.Create,
+		sampleClusterWithInvalidMaster(),
+		api.Redis{},
+		false,
+		false,
+	},
+	{"Create Invalid Cluster (invalid Spec.Cluster.Replicas)",
+		requestKind,
+		"foo",
+		"default",
+		admission.Create,
+		sampleClusterWithInvalidReplicas(),
+		api.Redis{},
+		false,
+		false,
+	},
+	{"Create Invalid Cluster (invalid Spec.Mode)",
+		requestKind,
+		"foo",
+		"default",
+		admission.Create,
+		sampleRedisWithInvalidMode(),
+		api.Redis{},
+		false,
+		false,
+	},
 }
 
-func sampleRedis() api.Redis {
+func sampleRedisWithoutMode() api.Redis {
 	return api.Redis{
 		TypeMeta: metaV1.TypeMeta{
 			Kind:       api.ResourceKindRedis,
@@ -247,9 +299,29 @@ func sampleRedis() api.Redis {
 	}
 }
 
+func sampleRedisWithInvalidMode() api.Redis {
+	redis := sampleRedisWithoutMode()
+	redis.Spec.Mode = api.RedisMode("cluster")
+
+	return redis
+}
+
+func sampleRedis() api.Redis {
+	redis := sampleRedisWithoutMode()
+	redis.Spec.Mode = api.RedisModeStandalone
+
+	return redis
+}
+
 func getAwkwardRedis() api.Redis {
 	redis := sampleRedis()
 	redis.Spec.Version = "3.0"
+	return redis
+}
+
+func getAwkwardRedisWithInvalidReplicas() api.Redis {
+	redis := sampleRedis()
+	redis.Spec.Replicas = types.Int32P(3)
 	return redis
 }
 
@@ -286,4 +358,42 @@ func editSpecInvalidMonitor(old api.Redis) api.Redis {
 func pauseDatabase(old api.Redis) api.Redis {
 	old.Spec.TerminationPolicy = api.TerminationPolicyPause
 	return old
+}
+
+// For Redis Cluster
+func sampleClusterWithOnlyMode() api.Redis {
+	redis := sampleRedis()
+	redis.Spec.Mode = api.RedisModeCluster
+
+	return redis
+}
+
+func sampleCluster() api.Redis {
+	redis := sampleClusterWithOnlyMode()
+	redis.Spec.Cluster = &api.RedisClusterSpec{
+		Master:   types.Int32P(3),
+		Replicas: types.Int32P(1),
+	}
+
+	return redis
+}
+
+func sampleClusterWithInvalidMaster() api.Redis {
+	redis := sampleClusterWithOnlyMode()
+	redis.Spec.Cluster = &api.RedisClusterSpec{
+		Master:   types.Int32P(2),
+		Replicas: types.Int32P(1),
+	}
+
+	return redis
+}
+
+func sampleClusterWithInvalidReplicas() api.Redis {
+	redis := sampleClusterWithOnlyMode()
+	redis.Spec.Cluster = &api.RedisClusterSpec{
+		Master:   types.Int32P(3),
+		Replicas: types.Int32P(0),
+	}
+
+	return redis
 }

@@ -17,6 +17,7 @@ var (
 	DBCatalogName      = "4.0-v1"
 	DBVersion          = "4.0-v1"
 	ExporterTag        = "v0.21.1"
+	Cluster            = false
 )
 
 type Framework struct {

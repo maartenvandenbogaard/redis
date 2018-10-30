@@ -4,7 +4,7 @@ set -xeou pipefail
 DOCKER_REGISTRY=${DOCKER_REGISTRY:-kubedb}
 IMG=redis
 SUFFIX=v1
-PATCH="4.0.6-$SUFFIX"
+PATCH="4.0.11-$SUFFIX"
 TAG="4.0-$SUFFIX"
 ALT_TAG="4-$SUFFIX"
 
