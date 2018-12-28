@@ -1,13 +1,12 @@
-hash: 9e3b23ac3c80214bad9f3dcb82a42d32152894f250cd2a723c6b981edfebf462
-updated: 2018-12-27T18:53:32.422946381+06:00
+hash: b526bd80b2b67ef350ad6c8efb13e89adf076dbdd2148b7bc4a052f15eb1a4f9
+updated: 2018-12-28T00:25:03.813843809-08:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
 - name: cloud.google.com/go
-  version: 3b1ae45394a234c385be014e9a488f2bb6eef821
+  version: 0fd7230b2a7505833d5f69b75cbd6c9582401479
   subpackages:
   - compute/metadata
-  - internal
 - name: github.com/appscode/go
   version: 584aaa73af837f112c0a471be398ea837341c330
   subpackages:
@@ -55,8 +54,6 @@ imports:
   - tools/queue
 - name: github.com/appscode/mergo
   version: 9f23e2d6bd2a77f959b2bf6acdbefd708a83a4a4
-- name: github.com/appscode/ocutil
-  version: 9e3ab89e810deaabe1fd353d01913aaf7dbe6e6d
 - name: github.com/appscode/osm
   version: 06ce62d34064847e7c6d4e4cc6c7264774499d47
   subpackages:
@@ -242,7 +239,7 @@ imports:
 - name: github.com/fatih/structs
   version: 878a968ab22548362a09bdb3322f98b00f470d46
 - name: github.com/ghodss/yaml
-  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+  version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-ini/ini
   version: a9da9309fb4822643ceebb765f80025c35ac19a1
 - name: github.com/go-openapi/jsonpointer
@@ -269,7 +266,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -450,12 +447,6 @@ imports:
   - matchers/support/goraph/node
   - matchers/support/goraph/util
   - types
-- name: github.com/openshift/api
-  version: 31a7bbd2266d178da3c12bb83f5274d387f775e6
-- name: github.com/openshift/client-go
-  version: 4688ad28de2e88110c0ea30179c51b9b205f99be
-- name: github.com/openshift/origin
-  version: fecffb2fce100260088a1b9f268c0901a778cf2b
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/peterbourgon/diskv
@@ -487,10 +478,9 @@ imports:
 - name: github.com/russross/blackfriday
   version: 05f3235734ad95d0016f6a23902f06461fcf567a
 - name: github.com/satori/go.uuid
-  version: 879c5887cd475cd7864858769793b2ceb0d44feb
+  version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
-  version: 24e2351369ec4949b2ed0dc5c477afdd4c4034e8
-  repo: https://github.com/sergi/go-diff
+  version: 97b2266dfe4bd4ea1b81a463322f04f8b724801e
   subpackages:
   - diffmatchpatch
 - name: github.com/sirupsen/logrus
@@ -501,19 +491,16 @@ imports:
   - doc
 - name: github.com/spf13/pflag
   version: 298182f68c66c05229eb03ac171abe6e309ee79a
-- name: github.com/tamalsaha/go-oneliners
-  version: 82a97ec58df4809a2bc57ebbbcc1e6a2feb78111
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
   - codec
 - name: github.com/yudai/gojsondiff
-  version: 0525c875b75ca60b9e67ddc44496aa16f21066b0
+  version: 7b1b7adf999dab73a6eb02669c3d82dbb27a3dd6
   subpackages:
   - formatter
 - name: github.com/yudai/golcs
   version: d1c525dea8ce39ea9a783d33cf08932305373f2c
-  repo: https://github.com/yudai/golcs
 - name: golang.org/x/crypto
   version: de0752318171da717af4ce24d0a2e8626afaeb11
   subpackages:
