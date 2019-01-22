@@ -156,6 +156,11 @@ func (c *Controller) createStatefulSet(redis *api.Redis) (*apps.StatefulSet, kut
 		in.Spec.UpdateStrategy = redis.Spec.UpdateStrategy
 		in = upsertUserEnv(in, redis)
 		in = upsertCustomConfig(in, redis)
+
+		if c.EnableRBAC {
+			in.Spec.Template.Spec.ServiceAccountName = redis.OffshootName()
+		}
+
 		return in
 	})
 }
